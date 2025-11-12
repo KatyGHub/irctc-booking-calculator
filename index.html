@@ -234,45 +234,57 @@ function calcBooking(){
   const s = stations[start];
   const dayCount = Math.max(1, parseInt(s.dayCount || "1", 10));
 
-  // Station date for THIS run from the API (best source). Fallback to user-picked date.
-  const stationDateStr = (s.actDepDate || s.actArrDate || "").trim();
-  const pickedDateStr  = (journeyYMD || "").trim();
+  const picked = (journeyYMD || "").trim();              // what you chose in calendar
+  if (!/^\d{8}$/.test(picked)) { errEl.textContent = "Pick the journey date."; return; }
 
-  // If API gave us the true station date and it differs from the user's pick, correct it.
-  let useStationDateStr = stationDateStr || pickedDateStr;
-  if (/^\d{8}$/.test(stationDateStr) && /^\d{8}$/.test(pickedDateStr) && stationDateStr !== pickedDateStr) {
-    // Friendly note + auto-correct calendar
-    const sdY = +stationDateStr.slice(0,4), sdM = +stationDateStr.slice(4,6), sdD = +stationDateStr.slice(6,8);
-    warnEl.textContent = `Heads up: for this run, ${s.code} is on ${new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric'}).format(new Date(Date.UTC(sdY,sdM-1,sdD)))}. We adjusted the journey date to match.`;
-    try {
-      if (window.flatpickr && flatpickr?.instances?.length) {
-        // setDate expects yyyy-mm-dd or a Date; give yyyy-mm-dd
-        const iso = `${sdY}-${String(sdM).padStart(2,'0')}-${String(sdD).padStart(2,'0')}`;
-        flatpickr.instances[0].setDate(iso, true);
-      }
-    } catch(_) {}
-    journeyYMD = stationDateStr;       // keep our internal state consistent
-    useStationDateStr = stationDateStr; // and calculate from this
+  const apiStation = (s.actDepDate || s.actArrDate || "").trim(); // API’s station date if present
+  const addDaysUTC = (utc, d) => utc + d*DAY_MS;
+
+  // Helpers
+  const ymdToUTC = (ymd) => Date.UTC(+ymd.slice(0,4), +ymd.slice(4,6)-1, +ymd.slice(6,8));
+  const utcToYMD = (utc) => {
+    const d = new Date(utc);
+    const y = d.getUTCFullYear(), m = String(d.getUTCMonth()+1).padStart(2,'0'), dd = String(d.getUTCDate()).padStart(2,'0');
+    return `${y}${m}${dd}`;
+  };
+
+  let originUTC, stationUTC, warnMsg = "";
+
+  if (/^\d{8}$/.test(apiStation)) {
+    if (apiStation === picked) {
+      // You picked the boarding date at this station
+      stationUTC = ymdToUTC(apiStation);
+      originUTC  = addDaysUTC(stationUTC, -(dayCount - 1));
+      // no warning
+    } else {
+      // You picked the run’s ORIGIN date; compute station date from origin
+      originUTC  = ymdToUTC(picked);
+      stationUTC = addDaysUTC(originUTC, (dayCount - 1));
+
+      const sdY = new Date(stationUTC).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day:'2-digit', month:'short', year:'numeric' });
+      warnMsg = `Heads up: for this run, ${s.code} is on ${sdY}. We kept your origin date and will compute booking from it.`;
+    }
+  } else {
+    // No API station date. Heuristic: if dayCount==1, assume picked is origin; else assume picked is station date but tell user.
+    if (dayCount === 1) {
+      originUTC  = ymdToUTC(picked);
+      stationUTC = originUTC; // same day
+    } else {
+      stationUTC = ymdToUTC(picked);
+      originUTC  = addDaysUTC(stationUTC, -(dayCount - 1));
+      const oStr = new Date(originUTC).toLocaleDateString('en-IN', { timeZone:'Asia/Kolkata', day:'2-digit', month:'short', year:'numeric' });
+      warnMsg = `Assuming you picked the boarding date. Origin would be ${oStr}.`;
+    }
   }
 
-  if (!/^\d{8}$/.test(useStationDateStr)) {
-    errEl.textContent = "Pick a valid journey date first.";
-    return;
-  }
+  if (warnMsg) warnEl.textContent = warnMsg;
 
-  const sY = +useStationDateStr.slice(0,4), sM = +useStationDateStr.slice(4,6), sD = +useStationDateStr.slice(6,8);
-  const stationUTC = Date.UTC(sY, sM - 1, sD);
-
-  // Correct origin: station’s calendar day minus (dayCount - 1)
-  const originUTC = stationUTC - (dayCount - 1) * DAY_MS;
-
+  // Display origin and compute booking @ 08:00 IST, 60 days prior
   const o = new Date(originUTC);
   const oY = o.getUTCFullYear(), oM = o.getUTCMonth() + 1, oD = o.getUTCDate();
+  outOrigin.textContent = fmtDate(oY, oM, oD);
 
-  // Booking at 08:00 IST, 60 days before origin
-  bookingUTC = originUTC - 60 * DAY_MS + ((8 * 60 - 330) * 60 * 1000);
-
-  outOrigin.textContent  = fmtDate(oY, oM, oD);
+  bookingUTC = originUTC - 60*DAY_MS + ((8*60 - 330) * 60 * 1000);
   outBooking.textContent = fmtFull(bookingUTC) + " IST";
   resultCard.style.display = '';
 
