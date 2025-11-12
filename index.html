@@ -217,32 +217,45 @@ function updateHighlights(){
 
 /* Fixed booking logic: origin = station-date − (dayCount−1) days */
 function calcBooking(){
-  if(!stations.length){ errEl.textContent="Fetch route first."; return; }
+  if (!stations.length) { errEl.textContent = "Fetch route first."; return; }
 
-  const start=+fromSel.value, end=+toSel.value;
-  if(!Number.isInteger(start)||!Number.isInteger(end)||end<=start){ errEl.textContent="Pick a valid Start and End in order."; return; }
+  const start = +fromSel.value, end = +toSel.value;
+  if (!Number.isInteger(start) || !Number.isInteger(end) || end <= start) {
+    errEl.textContent = "Pick a valid Start and End in order.";
+    return;
+  }
 
-  const s=stations[start];
-  const dayCount=Math.max(1, parseInt(s.dayCount||"1",10));
+  const s = stations[start];
+  const dayCount = Math.max(1, parseInt(s.dayCount || "1", 10));
 
-  const sDateStr=(s.actDepDate||s.actArrDate||journeyYMD||"").trim();
-  if(!/^\d{8}$/.test(sDateStr)){ errEl.textContent="Couldn’t determine station date. Re-fetch and try again."; return; }
+  // Journey date the user picked (boarding date at that station)
+  const jStr = (journeyYMD || "").trim();
+  if (!/^\d{8}$/.test(jStr)) {
+    errEl.textContent = "Pick a valid journey date first.";
+    return;
+  }
 
-  const sY=+sDateStr.slice(0,4), sM=+sDateStr.slice(4,6), sD=+sDateStr.slice(6,8);
-  const stationUTC=Date.UTC(sY,sM-1,sD);
-  const originUTC=stationUTC - (dayCount-1)*DAY_MS;
+  const jY = +jStr.slice(0,4), jM = +jStr.slice(4,6), jD = +jStr.slice(6,8);
+  const journeyUTC = Date.UTC(jY, jM - 1, jD);
 
-  const o=new Date(originUTC);
-  const oY=o.getUTCFullYear(), oM=o.getUTCMonth()+1, oD=o.getUTCDate();
+  // Correct origin: journey date − (dayCount − 1)
+  const originUTC = journeyUTC - (dayCount - 1) * DAY_MS;
 
-  bookingUTC = originUTC - 60*DAY_MS + ((8*60-330)*60*1000); // 08:00 IST
+  const o = new Date(originUTC);
+  const oY = o.getUTCFullYear(), oM = o.getUTCMonth() + 1, oD = o.getUTCDate();
 
-  outOrigin.textContent=fmtDate(oY,oM,oD);
-  outBooking.textContent=fmtFull(bookingUTC)+" IST";
-  resultCard.style.display='';
+  // Booking at 08:00 IST, 60 days before origin
+  bookingUTC = originUTC - 60 * DAY_MS + ((8 * 60 - 330) * 60 * 1000);
 
-  renderCountdown(); if(window._cd) clearInterval(window._cd); window._cd=setInterval(renderCountdown,30000);
+  outOrigin.textContent = fmtDate(oY, oM, oD);
+  outBooking.textContent = fmtFull(bookingUTC) + " IST";
+  resultCard.style.display = '';
+
+  renderCountdown();
+  if (window._cd) clearInterval(window._cd);
+  window._cd = setInterval(renderCountdown, 30000);
 }
+  
 function renderCountdown(){
   if(!bookingUTC){ countdownEl.textContent=""; return; }
   const diff=bookingUTC-Date.now(); if(diff<=0){ countdownEl.textContent="Open now"; return; }
