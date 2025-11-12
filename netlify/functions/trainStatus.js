@@ -1,5 +1,5 @@
 // Replace with your RapidAPI key
-const RAPIDAPI_KEY  = "PASTE_YOUR_RAPIDAPI_KEY_HERE";
+const RAPIDAPI_KEY  = "4bb217ccb0msh6a95ea8451ccf9cp15b146jsn8040bbd53b68";
 const RAPIDAPI_HOST = "indian-railway-irctc.p.rapidapi.com";
 const RAPIDAPI_BASE = "https://indian-railway-irctc.p.rapidapi.com";
 
