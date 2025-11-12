@@ -7,9 +7,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#0b0f1a">
 
-<!-- Flatpickr calendar (popup) -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-<!-- load with onload/onerror to know if it actually arrived; we handle fallback -->
 <script src="https://cdn.jsdelivr.net/npm/flatpickr" onload="initCalendar()" onerror="calendarCDNFailed()"></script>
 
 <style>
@@ -66,7 +64,6 @@ footer a:hover{text-decoration:underline}
       </div>
       <div>
         <label>Journey date</label>
-        <!-- Calendar target: readOnly so keyboard typing won’t override; calendar opens on click -->
         <input id="journey" class="input" type="text" placeholder="Select date" readonly>
         <div class="small">Pick from calendar.</div>
       </div>
@@ -100,46 +97,32 @@ footer a:hover{text-decoration:underline}
     <div id="liveMsg" style="margin-top:8px"></div>
   </section>
 
-  <footer class="small">Made with ❤️ by <a id="byLink" href="https://www.linkedin.com/in/kaarthik" target="_blank" rel="noopener">Kaarthik</a></footer>
+  <footer class="small">Made with ❤️ by <a href="https://www.linkedin.com/in/kaarthik" target="_blank" rel="noopener">Kaarthik</a></footer>
 </main>
 
 <script>
-/* ---------------- Calendar (robust) ---------------- */
-let _flatpickrReady = false;
+/* Calendar */
+let _flatpickrReady=false;
 function initCalendar(){
-  if (!window.flatpickr) return calendarCDNFailed(); // safety
-  _flatpickrReady = true;
-  flatpickr("#journey", {
-    altInput: true,
-    altFormat: "F j, Y",
-    dateFormat: "Ymd",    // API expects YYYYMMDD
-    allowInput: false,
-    clickOpens: true
-  });
+  if(!window.flatpickr) return calendarCDNFailed();
+  _flatpickrReady=true;
+  flatpickr("#journey",{altInput:true,altFormat:"F j, Y",dateFormat:"Ymd",allowInput:false,clickOpens:true});
 }
 function calendarCDNFailed(){
-  // Fallback 1: try alternate CDN
-  const alt = document.createElement("script");
-  alt.src = "https://unpkg.com/flatpickr@latest/dist/flatpickr.min.js";
-  alt.onload = initCalendar;
-  alt.onerror = () => {
-    // Fallback 2: native date input
-    const j = document.getElementById('journey');
-    j.readOnly = false;
-    j.type = 'date';
+  const alt=document.createElement("script");
+  alt.src="https://unpkg.com/flatpickr@latest/dist/flatpickr.min.js";
+  alt.onload=initCalendar;
+  alt.onerror=()=>{
+    const j=document.getElementById('journey'); j.readOnly=false; j.type='date';
   };
   document.head.appendChild(alt);
 }
-// In case CDN script loaded but init didn’t run due to race, force-check after DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-  setTimeout(() => { if (!_flatpickrReady && window.flatpickr) initCalendar(); }, 500);
-});
+document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{if(!_flatpickrReady&&window.flatpickr) initCalendar();},500);});
 
-/* ---------------- App logic ---------------- */
-const DAY_MS=86400000, IST_MIN=330, MS_8AM_IST=((8*60-IST_MIN)*60*1000);
+/* App logic */
+const DAY_MS=86400000;
 const fmtDate=(y,m,d)=>new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(Date.UTC(y,m-1,d)));
 const fmtFull=(ms)=>new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',weekday:'short',month:'short',day:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(ms)).replace(/\u200E/g,'');
-const parseYMD=(s)=>({y:+s.slice(0,4),m:+s.slice(4,6),d:+s.slice(6,8)});
 
 const errEl=document.getElementById('err');
 const routeCard=document.getElementById('routeCard');
@@ -154,33 +137,28 @@ const outOrigin=document.getElementById('outOrigin');
 const outBooking=document.getElementById('outBooking');
 const countdownEl=document.getElementById('countdown');
 
-let stations=[], originYMD=null, bookingUTC=null;
-let firstClickIndex=null;
+let stations=[], bookingUTC=null, firstClickIndex=null, journeyYMD=null;
 
 document.getElementById('fetch').addEventListener('click', fetchRoute);
 document.getElementById('calc').addEventListener('click', calcBooking);
 
-// SW registration AFTER page is interactive so it doesn't race the first load
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
-  });
-}
+if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/service-worker.js').catch(()=>{}));}
 
 function getSelectedYMD(){
-  const el = document.getElementById('journey');
-  const v = el.value?.trim();
-  if (/^\d{8}$/.test(v)) return v;         // flatpickr format
-  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v.replace(/-/g,''); // native date fallback
+  const el=document.getElementById('journey'); const v=(el.value||'').trim();
+  if(/^\d{8}$/.test(v)) return v;                   // flatpickr format Ymd
+  if(/^\d{4}-\d{2}-\d{2}$/.test(v)) return v.replace(/-/g,''); // native fallback
   return null;
 }
 
 async function fetchRoute(){
   errEl.textContent=""; routeCard.style.display='none'; resultCard.style.display='none'; liveCard.style.display='none';
-  stations=[]; originYMD=null; bookingUTC=null; firstClickIndex=null;
+  stations=[]; bookingUTC=null; firstClickIndex=null;
 
   const tn=(document.getElementById('trainNo').value||'').trim();
   const ymd=getSelectedYMD();
+  journeyYMD=ymd;  // remember user’s boarding date
+
   if(!/^\d{3,5}$/.test(tn)){ errEl.textContent="Enter a valid train number (3–5 digits)."; return; }
   if(!/^\d{8}$/.test(ymd||"")) { errEl.textContent="Pick the journey date."; return; }
 
@@ -192,130 +170,84 @@ async function fetchRoute(){
   try{
     const res=await fetch(url.toString());
     const text=await res.text();
-    if(!res.ok) { errEl.textContent="API error. Try a different date or train."; return; }
+    if(!res.ok){ errEl.textContent="API error. Try a different date or train."; return; }
     payload=JSON.parse(text);
-  }catch(e){ errEl.textContent="Could not reach server."; return; }
+  }catch{ errEl.textContent="Could not reach server."; return; }
 
   const brief=payload.brief||{};
   stations=brief.stations||[];
   if(!stations.length){ errEl.textContent="No station data for that run."; return; }
 
-  const first=stations[0];
-  let org=first.actDepDate||first.actArrDate||ymd;
-  if(!org){
-    const mins=stations.map(s=>s.actDepDate||s.actArrDate).filter(Boolean).sort();
-    org=mins[0]||ymd;
-  }
-  originYMD=parseYMD(org);
+  const cleanMsg=(brief.train_status_message||"").replace(/<[^>]+>/g,'').trim();
+  metaEl.textContent=[brief.trainNumber?`Train: ${brief.trainNumber}`:null, brief.current_station?`Current: ${brief.current_station}`:null, cleanMsg||null].filter(Boolean).join(" • ");
+  if(brief.current_station||cleanMsg){ liveCard.style.display=''; liveMsg.textContent=cleanMsg||`Current station: ${brief.current_station}`; }
 
-  const cleanMsg = (brief.train_status_message||"").replace(/<[^>]+>/g,'').trim();
-  metaEl.textContent = [
-    brief.trainNumber ? `Train: ${brief.trainNumber}` : null,
-    brief.current_station ? `Current: ${brief.current_station}` : null,
-    cleanMsg || null
-  ].filter(Boolean).join(" • ");
-
-  if (brief.current_station || cleanMsg) {
-    liveCard.style.display='';
-    liveMsg.textContent = cleanMsg || `Current station: ${brief.current_station}`;
-  }
-
-  fromSel.innerHTML = stations.map((s,i)=>`<option value="${i}">${s.code} — ${s.name}</option>`).join('');
-  toSel.innerHTML   = stations.map((s,i)=>`<option value="${i}">${s.code} — ${s.name}</option>`).join('');
+  fromSel.innerHTML=stations.map((s,i)=>`<option value="${i}">${s.code} — ${s.name}</option>`).join('');
+  toSel.innerHTML  =stations.map((s,i)=>`<option value="${i}">${s.code} — ${s.name}</option>`).join('');
   fromSel.value="0"; toSel.value=String(stations.length-1);
 
   renderRouteMap(brief.current_station||null);
-
   routeCard.style.display='';
 }
 
 function renderRouteMap(currentCode){
-  routeEl.innerHTML = "";
-  stations.forEach((s, i) => {
-    if (i>0) {
-      const conn=document.createElement('div');
-      conn.className="connector";
-      routeEl.appendChild(conn);
-    }
-    const node=document.createElement('div');
-    node.className="station";
-    node.dataset.index=i;
-
-    const dot=document.createElement('div');
-    dot.className="dot";
-    if (currentCode && s.code===currentCode) dot.classList.add('current');
-    dot.title = `${s.code} • ${s.name}`;
-    dot.addEventListener('click', ()=>onStationClick(i));
-
-    const code=document.createElement('div');
-    code.className="stCode";
-    code.textContent=s.code;
-
-    const name=document.createElement('div');
-    name.className="stName";
-    name.textContent=s.name;
-
-    node.appendChild(dot);
-    node.appendChild(code);
-    node.appendChild(name);
-    routeEl.appendChild(node);
+  routeEl.innerHTML="";
+  stations.forEach((s,i)=>{
+    if(i>0){const c=document.createElement('div'); c.className="connector"; routeEl.appendChild(c);}
+    const node=document.createElement('div'); node.className="station"; node.dataset.index=i;
+    const dot=document.createElement('div'); dot.className="dot"; if(currentCode&&s.code===currentCode) dot.classList.add('current'); dot.title=`${s.code} • ${s.name}`; dot.addEventListener('click',()=>onStationClick(i));
+    const code=document.createElement('div'); code.className="stCode"; code.textContent=s.code;
+    const name=document.createElement('div'); name.className="stName"; name.textContent=s.name;
+    node.appendChild(dot); node.appendChild(code); node.appendChild(name); routeEl.appendChild(node);
   });
   updateHighlights();
 }
-
 function onStationClick(idx){
-  if (firstClickIndex==null) {
-    firstClickIndex = idx;
-    fromSel.value = String(idx);
-  } else {
-    if (idx <= firstClickIndex) {
-      firstClickIndex = idx;
-      fromSel.value = String(idx);
-    } else {
-      toSel.value = String(idx);
-      firstClickIndex = null;
-    }
-  }
+  if(firstClickIndex==null){ firstClickIndex=idx; fromSel.value=String(idx); }
+  else { if(idx<=firstClickIndex){ firstClickIndex=idx; fromSel.value=String(idx); } else { toSel.value=String(idx); firstClickIndex=null; } }
   updateHighlights();
 }
-
 function updateHighlights(){
-  const start = +fromSel.value || 0;
-  const end = +toSel.value || (stations.length-1);
-  const nodes = Array.from(routeEl.querySelectorAll('.station'));
-  nodes.forEach((n, i) => {
-    const d = n.querySelector('.dot');
-    d.classList.remove('selected','range');
-    if (i===start || i===end) d.classList.add('selected');
-    if (i>start && i<end) d.classList.add('range');
+  const start=+fromSel.value||0, end=+toSel.value||stations.length-1;
+  Array.from(routeEl.querySelectorAll('.station')).forEach((n,i)=>{
+    const d=n.querySelector('.dot'); d.classList.remove('selected','range');
+    if(i===start||i===end) d.classList.add('selected'); if(i>start&&i<end) d.classList.add('range');
   });
 }
 
+/* Fixed booking logic: origin = station-date − (dayCount−1) days */
 function calcBooking(){
-  if(!originYMD) { errEl.textContent="Fetch route first."; return; }
-  const start = +fromSel.value, end = +toSel.value;
-  if (!Number.isInteger(start) || !Number.isInteger(end) || end<=start) {
-    errEl.textContent="Pick a valid Start and End in order.";
-    return;
-  }
-  const originUTC = Date.UTC(originYMD.y, originYMD.m-1, originYMD.d);
+  if(!stations.length){ errEl.textContent="Fetch route first."; return; }
+
+  const start=+fromSel.value, end=+toSel.value;
+  if(!Number.isInteger(start)||!Number.isInteger(end)||end<=start){ errEl.textContent="Pick a valid Start and End in order."; return; }
+
+  const s=stations[start];
+  const dayCount=Math.max(1, parseInt(s.dayCount||"1",10));
+
+  const sDateStr=(s.actDepDate||s.actArrDate||journeyYMD||"").trim();
+  if(!/^\d{8}$/.test(sDateStr)){ errEl.textContent="Couldn’t determine station date. Re-fetch and try again."; return; }
+
+  const sY=+sDateStr.slice(0,4), sM=+sDateStr.slice(4,6), sD=+sDateStr.slice(6,8);
+  const stationUTC=Date.UTC(sY,sM-1,sD);
+  const originUTC=stationUTC - (dayCount-1)*DAY_MS;
+
+  const o=new Date(originUTC);
+  const oY=o.getUTCFullYear(), oM=o.getUTCMonth()+1, oD=o.getUTCDate();
+
   bookingUTC = originUTC - 60*DAY_MS + ((8*60-330)*60*1000); // 08:00 IST
 
-  outOrigin.textContent = fmtDate(originYMD.y, originYMD.m, originYMD.d);
-  outBooking.textContent = fmtFull(bookingUTC) + " IST";
+  outOrigin.textContent=fmtDate(oY,oM,oD);
+  outBooking.textContent=fmtFull(bookingUTC)+" IST";
   resultCard.style.display='';
 
-  renderCountdown();
-  if (window._cd) clearInterval(window._cd);
-  window._cd = setInterval(renderCountdown, 30000);
+  renderCountdown(); if(window._cd) clearInterval(window._cd); window._cd=setInterval(renderCountdown,30000);
 }
-
 function renderCountdown(){
-  if (!bookingUTC) { countdownEl.textContent=""; return; }
-  const diff = bookingUTC - Date.now();
-  if (diff <= 0) { countdownEl.textContent = "Open now"; return; }
+  if(!bookingUTC){ countdownEl.textContent=""; return; }
+  const diff=bookingUTC-Date.now(); if(diff<=0){ countdownEl.textContent="Open now"; return; }
   const d=Math.floor(diff/DAY_MS), h=Math.floor((diff%DAY_MS)/3600000), m=Math.floor((diff%3600000)/60000);
-  countdownEl.textContent = `Opens in ${d}d ${h}h ${m}m`;
+  countdownEl.textContent=`Opens in ${d}d ${h}h ${m}m`;
 }
 </script>
 </body>
