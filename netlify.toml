@@ -2,7 +2,6 @@
   publish = "."
   functions = "netlify/functions"
 
-# Keep the headers minimal; no CSP to avoid blocking scripts/styles.
 [[headers]]
   for = "/*"
   [headers.values]
