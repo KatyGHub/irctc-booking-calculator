@@ -7,15 +7,13 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#0b0f1a">
 
-<!-- Flatpickr calendar (for dynamic popup) -->
+<!-- Flatpickr calendar (popup) -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-<script defer src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<!-- load with onload/onerror to know if it actually arrived; we handle fallback -->
+<script src="https://cdn.jsdelivr.net/npm/flatpickr" onload="initCalendar()" onerror="calendarCDNFailed()"></script>
 
 <style>
-:root{
-  --bg:#0b0f1a; --fg:#e8edf5; --muted:#9fb0c7; --card:#0e1422; --border:#1a2538; --accent:#4da3ff;
-  --ok:#34d399; --warn:#f59e0b; --err:#f87171;
-}
+:root{ --bg:#0b0f1a; --fg:#e8edf5; --muted:#9fb0c7; --card:#0e1422; --border:#1a2538; --accent:#4da3ff; --ok:#34d399; --warn:#f59e0b; --err:#f87171; }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;display:flex;justify-content:center;padding:18px}
 main{width:100%;max-width:980px;display:flex;flex-direction:column;gap:14px}
@@ -28,15 +26,12 @@ input,select,button{font:inherit}
 @media(max-width:820px){.row{grid-template-columns:1fr}}
 button{border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:#163056;color:var(--fg);cursor:pointer}
 button.primary{background:var(--accent);border-color:var(--accent);color:#051225}
-small,.small{font-size:12px;color:var(--muted)}
+.small{font-size:12px;color:var(--muted)}
 .err{color:var(--err)}
-/* Booking card animation */
 .pop-in{animation:pop .35s ease-out}
 @keyframes pop{from{transform:scale(.97);opacity:0}to{transform:scale(1);opacity:1}}
-/* Countdown subtle pulse */
 .pulse{animation:pulse 2.5s ease-in-out infinite}
 @keyframes pulse{0%{opacity:.85}50%{opacity:1}100%{opacity:.85}}
-/* Route map */
 .routeWrap{overflow-x:auto;padding-bottom:8px}
 .route{display:flex;align-items:center;gap:16px;padding:10px 6px}
 .station{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:84px}
@@ -71,7 +66,7 @@ footer a:hover{text-decoration:underline}
       </div>
       <div>
         <label>Journey date</label>
-        <!-- Flatpickr target (readonly so calendar always opens) -->
+        <!-- Calendar target: readOnly so keyboard typing won’t override; calendar opens on click -->
         <input id="journey" class="input" type="text" placeholder="Select date" readonly>
         <div class="small">Pick from calendar.</div>
       </div>
@@ -82,22 +77,11 @@ footer a:hover{text-decoration:underline}
 
   <section id="routeCard" class="card" style="display:none">
     <div id="meta" class="small"></div>
-
-    <!-- Interactive route map -->
-    <div class="routeWrap">
-      <div id="route" class="route"></div>
-    </div>
+    <div class="routeWrap"><div id="route" class="route"></div></div>
     <div class="helper">Tip: Click one station for Start, then another later station for End. You can still adjust using the dropdowns.</div>
-
     <div class="row" style="grid-template-columns:1fr 1fr auto;margin-top:10px">
-      <div>
-        <label>Start (boarding)</label>
-        <select id="fromSel" class="input"></select>
-      </div>
-      <div>
-        <label>End (destination)</label>
-        <select id="toSel" class="input"></select>
-      </div>
+      <div><label>Start (boarding)</label><select id="fromSel" class="input"></select></div>
+      <div><label>End (destination)</label><select id="toSel" class="input"></select></div>
       <div style="display:flex;align-items:end"><button id="calc" class="primary">Calculate booking</button></div>
     </div>
   </section>
@@ -120,33 +104,43 @@ footer a:hover{text-decoration:underline}
 </main>
 
 <script>
-// Calendar setup (Flatpickr)
-let fp=null;
-document.addEventListener('DOMContentLoaded', () => {
-  if (window.flatpickr) {
-    fp = flatpickr("#journey", {
-      altInput: true,
-      altFormat: "F j, Y",
-      dateFormat: "Ymd",   // we’ll read this value for the API
-      allowInput: false,
-      clickOpens: true,
-      defaultDate: null
-    });
-  } else {
-    // Fallback: native date if CDN fails
+/* ---------------- Calendar (robust) ---------------- */
+let _flatpickrReady = false;
+function initCalendar(){
+  if (!window.flatpickr) return calendarCDNFailed(); // safety
+  _flatpickrReady = true;
+  flatpickr("#journey", {
+    altInput: true,
+    altFormat: "F j, Y",
+    dateFormat: "Ymd",    // API expects YYYYMMDD
+    allowInput: false,
+    clickOpens: true
+  });
+}
+function calendarCDNFailed(){
+  // Fallback 1: try alternate CDN
+  const alt = document.createElement("script");
+  alt.src = "https://unpkg.com/flatpickr@latest/dist/flatpickr.min.js";
+  alt.onload = initCalendar;
+  alt.onerror = () => {
+    // Fallback 2: native date input
     const j = document.getElementById('journey');
-    j.type = 'date';
     j.readOnly = false;
-  }
+    j.type = 'date';
+  };
+  document.head.appendChild(alt);
+}
+// In case CDN script loaded but init didn’t run due to race, force-check after DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => { if (!_flatpickrReady && window.flatpickr) initCalendar(); }, 500);
 });
 
-// Utils
+/* ---------------- App logic ---------------- */
 const DAY_MS=86400000, IST_MIN=330, MS_8AM_IST=((8*60-IST_MIN)*60*1000);
 const fmtDate=(y,m,d)=>new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(Date.UTC(y,m-1,d)));
 const fmtFull=(ms)=>new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',weekday:'short',month:'short',day:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(ms)).replace(/\u200E/g,'');
 const parseYMD=(s)=>({y:+s.slice(0,4),m:+s.slice(4,6),d:+s.slice(6,8)});
 
-// Elements
 const errEl=document.getElementById('err');
 const routeCard=document.getElementById('routeCard');
 const resultCard=document.getElementById('resultCard');
@@ -163,26 +157,24 @@ const countdownEl=document.getElementById('countdown');
 let stations=[], originYMD=null, bookingUTC=null;
 let firstClickIndex=null;
 
-// Event wiring
 document.getElementById('fetch').addEventListener('click', fetchRoute);
 document.getElementById('calc').addEventListener('click', calcBooking);
 
-// Service worker
+// SW registration AFTER page is interactive so it doesn't race the first load
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
+  });
 }
 
 function getSelectedYMD(){
-  // If flatpickr, the input’s value is already Ymd
   const el = document.getElementById('journey');
   const v = el.value?.trim();
-  if (/^\d{8}$/.test(v)) return v;
-  // Fallback for native date
-  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v.replace(/-/g,'');
+  if (/^\d{8}$/.test(v)) return v;         // flatpickr format
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v.replace(/-/g,''); // native date fallback
   return null;
 }
 
-// Fetch route + live status
 async function fetchRoute(){
   errEl.textContent=""; routeCard.style.display='none'; resultCard.style.display='none'; liveCard.style.display='none';
   stations=[]; originYMD=null; bookingUTC=null; firstClickIndex=null;
@@ -208,7 +200,6 @@ async function fetchRoute(){
   stations=brief.stations||[];
   if(!stations.length){ errEl.textContent="No station data for that run."; return; }
 
-  // Determine origin date
   const first=stations[0];
   let org=first.actDepDate||first.actArrDate||ymd;
   if(!org){
@@ -217,7 +208,6 @@ async function fetchRoute(){
   }
   originYMD=parseYMD(org);
 
-  // Meta + live status
   const cleanMsg = (brief.train_status_message||"").replace(/<[^>]+>/g,'').trim();
   metaEl.textContent = [
     brief.trainNumber ? `Train: ${brief.trainNumber}` : null,
@@ -230,18 +220,15 @@ async function fetchRoute(){
     liveMsg.textContent = cleanMsg || `Current station: ${brief.current_station}`;
   }
 
-  // Populate selectors
   fromSel.innerHTML = stations.map((s,i)=>`<option value="${i}">${s.code} — ${s.name}</option>`).join('');
   toSel.innerHTML   = stations.map((s,i)=>`<option value="${i}">${s.code} — ${s.name}</option>`).join('');
   fromSel.value="0"; toSel.value=String(stations.length-1);
 
-  // Render interactive route map
   renderRouteMap(brief.current_station||null);
 
   routeCard.style.display='';
 }
 
-// Build the interactive route map
 function renderRouteMap(currentCode){
   routeEl.innerHTML = "";
   stations.forEach((s, i) => {
@@ -304,7 +291,6 @@ function updateHighlights(){
   });
 }
 
-// Booking calculation + countdown
 function calcBooking(){
   if(!originYMD) { errEl.textContent="Fetch route first."; return; }
   const start = +fromSel.value, end = +toSel.value;
