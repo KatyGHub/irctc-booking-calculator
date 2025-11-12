@@ -6,6 +6,11 @@
 <title>IRCTC Booking Date Calculator</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#0b0f1a">
+
+<!-- Flatpickr calendar (for dynamic popup) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
 <style>
 :root{
   --bg:#0b0f1a; --fg:#e8edf5; --muted:#9fb0c7; --card:#0e1422; --border:#1a2538; --accent:#4da3ff;
@@ -66,7 +71,8 @@ footer a:hover{text-decoration:underline}
       </div>
       <div>
         <label>Journey date</label>
-        <input id="journey" class="input" type="date">
+        <!-- Flatpickr target (readonly so calendar always opens) -->
+        <input id="journey" class="input" type="text" placeholder="Select date" readonly>
         <div class="small">Pick from calendar.</div>
       </div>
       <div style="display:flex;align-items:end"><button id="fetch" class="primary">Fetch route</button></div>
@@ -114,12 +120,31 @@ footer a:hover{text-decoration:underline}
 </main>
 
 <script>
+// Calendar setup (Flatpickr)
+let fp=null;
+document.addEventListener('DOMContentLoaded', () => {
+  if (window.flatpickr) {
+    fp = flatpickr("#journey", {
+      altInput: true,
+      altFormat: "F j, Y",
+      dateFormat: "Ymd",   // we’ll read this value for the API
+      allowInput: false,
+      clickOpens: true,
+      defaultDate: null
+    });
+  } else {
+    // Fallback: native date if CDN fails
+    const j = document.getElementById('journey');
+    j.type = 'date';
+    j.readOnly = false;
+  }
+});
+
 // Utils
 const DAY_MS=86400000, IST_MIN=330, MS_8AM_IST=((8*60-IST_MIN)*60*1000);
 const fmtDate=(y,m,d)=>new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(Date.UTC(y,m-1,d)));
 const fmtFull=(ms)=>new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',weekday:'short',month:'short',day:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(ms)).replace(/\u200E/g,'');
 const parseYMD=(s)=>({y:+s.slice(0,4),m:+s.slice(4,6),d:+s.slice(6,8)});
-const toYMD=(inputDateStr)=> inputDateStr?.replace(/-/g,"");
 
 // Elements
 const errEl=document.getElementById('err');
@@ -147,13 +172,23 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
 }
 
+function getSelectedYMD(){
+  // If flatpickr, the input’s value is already Ymd
+  const el = document.getElementById('journey');
+  const v = el.value?.trim();
+  if (/^\d{8}$/.test(v)) return v;
+  // Fallback for native date
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v.replace(/-/g,'');
+  return null;
+}
+
 // Fetch route + live status
 async function fetchRoute(){
   errEl.textContent=""; routeCard.style.display='none'; resultCard.style.display='none'; liveCard.style.display='none';
   stations=[]; originYMD=null; bookingUTC=null; firstClickIndex=null;
 
   const tn=(document.getElementById('trainNo').value||'').trim();
-  const ymd=toYMD(document.getElementById('journey').value);
+  const ymd=getSelectedYMD();
   if(!/^\d{3,5}$/.test(tn)){ errEl.textContent="Enter a valid train number (3–5 digits)."; return; }
   if(!/^\d{8}$/.test(ymd||"")) { errEl.textContent="Pick the journey date."; return; }
 
@@ -242,18 +277,16 @@ function renderRouteMap(currentCode){
 }
 
 function onStationClick(idx){
-  // First click => start; second click => end (must be after start)
   if (firstClickIndex==null) {
     firstClickIndex = idx;
     fromSel.value = String(idx);
   } else {
     if (idx <= firstClickIndex) {
-      // If second is before or equal, treat it as the new start
       firstClickIndex = idx;
       fromSel.value = String(idx);
     } else {
       toSel.value = String(idx);
-      firstClickIndex = null; // reset
+      firstClickIndex = null;
     }
   }
   updateHighlights();
@@ -271,7 +304,7 @@ function updateHighlights(){
   });
 }
 
-// Booking calculation and countdown
+// Booking calculation + countdown
 function calcBooking(){
   if(!originYMD) { errEl.textContent="Fetch route first."; return; }
   const start = +fromSel.value, end = +toSel.value;
