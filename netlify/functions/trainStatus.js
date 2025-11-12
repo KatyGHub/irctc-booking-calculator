@@ -1,24 +1,13 @@
 // Self-contained RapidAPI proxy (no env vars).
-// 1) Replace RAPIDAPI_KEY below.
-// 2) Deploy. Test health at /.netlify/functions/trainStatus?ping=1
-
-const RAPIDAPI_KEY  = "4bb217ccb0msh6a95ea8451ccf9cp15b146jsn8040bbd53b68"; // <-- REQUIRED
+// Replace with your real key:
+const RAPIDAPI_KEY  = "PASTE_YOUR_RAPIDAPI_KEY_HERE";
 const RAPIDAPI_HOST = "indian-railway-irctc.p.rapidapi.com";
 const RAPIDAPI_BASE = "https://indian-railway-irctc.p.rapidapi.com";
 
 export async function handler(event) {
   try {
     const q = event.queryStringParameters || {};
-    // quick health check
-    if (q.ping) {
-      return json(200, { ok: true, ts: new Date().toISOString() });
-    }
-    // optional sample (no network) -> /.netlify/functions/trainStatus?sample=1
-    if (q.sample) {
-      return json(200, samplePayload());
-    }
-
-    if (!RAPIDAPI_KEY) return json(500, { error: "RapidAPI key missing in function code" });
+    if (q.ping) return json(200, { ok: true, ts: new Date().toISOString() });
 
     const train_number   = (q.train_number || "").trim();
     const departure_date = (q.departure_date || "").trim(); // YYYYMMDD
@@ -41,15 +30,13 @@ export async function handler(event) {
     });
 
     const text = await r.text();
-    if (!r.ok) return json(r.status, { error: "Upstream error", status: r.status, body: text.slice(0, 800) });
+    if (!r.ok) return json(r.status, { error: "Upstream error", status: r.status, body: text.slice(0, 600) });
 
-    let raw; try { raw = JSON.parse(text); }
-    catch { return json(502, { error: "Non-JSON upstream", body: text.slice(0, 200) }); }
+    let raw; try { raw = JSON.parse(text); } catch { return json(502, { error: "Invalid JSON from API" }); }
 
     const body = raw?.body || {};
     const stations = Array.isArray(body?.stations) ? body.stations : [];
 
-    // Normalize what the UI needs
     const brief = {
       trainNumber: train_number,
       trainName: raw?.trainName || raw?.train_name || raw?.train?.name || null,
@@ -67,7 +54,7 @@ export async function handler(event) {
       }))
     };
 
-    return json(200, { raw, brief });
+    return json(200, { brief });
   } catch (e) {
     return json(500, { error: "Function failure", detail: String(e) });
   }
@@ -78,22 +65,5 @@ function json(statusCode, body) {
     statusCode,
     headers: { "content-type": "application/json", "access-control-allow-origin": "*" },
     body: JSON.stringify(body)
-  };
-}
-
-function samplePayload() {
-  // Minimal realistic sample for offline verification
-  return {
-    brief: {
-      trainNumber: "16527",
-      trainName: "YPR–CAN",
-      current_station: "CRLM",
-      train_status_message: "Train has crossed Heelalige at 21:09",
-      stations: [
-        { code: "YPR", name: "Yesvantpur Jn", planArr: "--",   planDep: "20:00", actArrDate:"20260115", actDepDate:"20260115", actArr:"--",   actDep:"20:00" },
-        { code: "CRLM",name: "Carmelaram",    planArr: "20:41", planDep: "20:42", actArrDate:"20260115", actDepDate:"20260115", actArr:"20:41", actDep:"20:42" },
-        { code: "CAN", name: "Kannur",        planArr: "09:45", planDep: "--",    actArrDate:"20260116", actDepDate:"20260116", actArr:"09:45", actDep:"--" }
-      ]
-    }
   };
 }
