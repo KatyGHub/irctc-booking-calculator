@@ -1,4 +1,5 @@
-const RAPIDAPI_KEY  = "4bb217ccb0msh6a95ea8451ccf9cp15b146jsn8040bbd53b68";
+// Replace with your RapidAPI key
+const RAPIDAPI_KEY  = "PASTE_YOUR_RAPIDAPI_KEY_HERE";
 const RAPIDAPI_HOST = "indian-railway-irctc.p.rapidapi.com";
 const RAPIDAPI_BASE = "https://indian-railway-irctc.p.rapidapi.com";
 
@@ -21,10 +22,7 @@ export async function handler(event) {
     url.searchParams.set("train_number", train_number);
 
     const r = await fetch(url.toString(), {
-      headers: {
-        "X-RapidAPI-Key": RAPIDAPI_KEY,
-        "X-RapidAPI-Host": RAPIDAPI_HOST
-      }
+      headers: { "X-RapidAPI-Key": RAPIDAPI_KEY, "X-RapidAPI-Host": RAPIDAPI_HOST }
     });
 
     const text = await r.text();
@@ -48,7 +46,8 @@ export async function handler(event) {
         actArr: s.actual_arrival_time,
         actDep: s.actual_departure_time,
         actArrDate: s.actual_arrival_date,
-        actDepDate: s.actual_departure_date
+        actDepDate: s.actual_departure_date,
+        dayCount: s.dayCount // needed to compute origin from a chosen station
       }))
     };
 
