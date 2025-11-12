@@ -4,33 +4,60 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>IRCTC Booking Date Calculator</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0b0f1a">
 <style>
-body{background:#0b0f1a;color:#e8edf5;font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;padding:18px;display:flex;justify-content:center}
-main{width:100%;max-width:920px;display:flex;flex-direction:column;gap:14px}
-.card{background:#0e1422;border:1px solid #1a2538;border-radius:14px;padding:16px}
+:root{
+  --bg:#0b0f1a; --fg:#e8edf5; --muted:#9fb0c7; --card:#0e1422; --border:#1a2538; --accent:#4da3ff;
+  --ok:#34d399; --warn:#f59e0b; --err:#f87171;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;display:flex;justify-content:center;padding:18px}
+main{width:100%;max-width:980px;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px}
 h1{margin:0 0 6px;font-size:22px}
-label{display:block;font-size:12px;color:#9fb0c7;margin-bottom:6px}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
 input,select,button{font:inherit}
-.input{width:100%;border:1px solid #1a2538;border-radius:12px;padding:12px;background:transparent;color:#e8edf5}
-.row{display:grid;grid-template-columns:1fr 1fr auto auto;gap:12px}
-@media(max-width:860px){.row{grid-template-columns:1fr}}
-button{border:1px solid #1a2538;border-radius:12px;padding:10px 12px;background:#4da3ff;color:#051225;cursor:pointer}
-button.secondary{background:#163056;color:#e8edf5}
-.small{font-size:12px;color:#9fb0c7}
-.err{color:#fca5a5}
-.list{display:grid;gap:8px}
-.stop{display:grid;grid-template-columns:90px 1fr 110px 110px;gap:8px;align-items:center;border:1px solid #1a2538;border-radius:10px;padding:8px;background:rgba(255,255,255,.03)}
-.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
-pre{white-space:pre-wrap;background:#0a0f19;border:1px solid #1a2538;border-radius:10px;padding:10px;max-height:260px;overflow:auto}
-footer{text-align:center;margin-top:8px;color:#9fb0c7}
+.input{width:100%;border:1px solid var(--border);border-radius:12px;padding:12px;background:transparent;color:var(--fg)}
+.row{display:grid;grid-template-columns:1fr 1fr auto;gap:12px}
+@media(max-width:820px){.row{grid-template-columns:1fr}}
+button{border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:#163056;color:var(--fg);cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#051225}
+small,.small{font-size:12px;color:var(--muted)}
+.err{color:var(--err)}
+/* Booking card animation */
+.pop-in{animation:pop .35s ease-out}
+@keyframes pop{from{transform:scale(.97);opacity:0}to{transform:scale(1);opacity:1}}
+/* Countdown subtle pulse */
+.pulse{animation:pulse 2.5s ease-in-out infinite}
+@keyframes pulse{0%{opacity:.85}50%{opacity:1}100%{opacity:.85}}
+/* Route map */
+.routeWrap{overflow-x:auto;padding-bottom:8px}
+.route{display:flex;align-items:center;gap:16px;padding:10px 6px}
+.station{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:84px}
+.dot{width:12px;height:12px;border-radius:50%;background:#4b5563;border:2px solid #94a3b8}
+.dot.current{box-shadow:0 0 0 4px rgba(77,163,255,.25);background:var(--accent);border-color:var(--accent)}
+.dot.selected{background:var(--ok);border-color:var(--ok)}
+.dot.range{background:#2563eb;border-color:#2563eb}
+.stCode{font:12px ui-monospace,Menlo,Consolas,monospace}
+.stName{font-size:12px;color:var(--muted);text-align:center;max-width:120px}
+.connector{height:2px;background:#334155;flex:1;min-width:20px}
+.helper{color:var(--muted);font-size:12px;margin-top:6px}
+.badge{display:inline-block;border:1px solid var(--border);border-radius:999px;padding:2px 8px;font-size:11px}
+footer{display:flex;justify-content:center;margin-top:6px}
+footer a{color:var(--muted);text-decoration:none}
+footer a:hover{text-decoration:underline}
+.live{display:flex;gap:8px;align-items:center}
+.dotlive{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 4px rgba(52,211,153,.15)}
 </style>
 </head>
 <body>
 <main>
-  <h1>IRCTC Booking Date Calculator</h1>
-  <div class="small">Booking opens at 08:00 IST, 60 days before the train’s origin start date.</div>
+  <header>
+    <h1>IRCTC Booking Date Calculator</h1>
+    <div class="small">Booking opens at 08:00 IST, 60 days before the train’s origin start date.</div>
+  </header>
 
-  <!-- Step 1 -->
   <section class="card">
     <div class="row">
       <div>
@@ -39,20 +66,24 @@ footer{text-align:center;margin-top:8px;color:#9fb0c7}
       </div>
       <div>
         <label>Journey date</label>
-        <!-- Native calendar, guaranteed everywhere -->
         <input id="journey" class="input" type="date">
-        <div class="small">Pick from calendar (required).</div>
+        <div class="small">Pick from calendar.</div>
       </div>
-      <div style="display:flex;align-items:end"><button id="fetch">Fetch route</button></div>
-      <div style="display:flex;align-items:end"><button id="demo" class="secondary" title="No network">Use sample</button></div>
+      <div style="display:flex;align-items:end"><button id="fetch" class="primary">Fetch route</button></div>
     </div>
     <div id="err" class="small err"></div>
   </section>
 
-  <!-- Step 2 -->
   <section id="routeCard" class="card" style="display:none">
     <div id="meta" class="small"></div>
-    <div class="row" style="margin-top:10px;grid-template-columns:1fr 1fr auto">
+
+    <!-- Interactive route map -->
+    <div class="routeWrap">
+      <div id="route" class="route"></div>
+    </div>
+    <div class="helper">Tip: Click one station for Start, then another later station for End. You can still adjust using the dropdowns.</div>
+
+    <div class="row" style="grid-template-columns:1fr 1fr auto;margin-top:10px">
       <div>
         <label>Start (boarding)</label>
         <select id="fromSel" class="input"></select>
@@ -61,131 +92,212 @@ footer{text-align:center;margin-top:8px;color:#9fb0c7}
         <label>End (destination)</label>
         <select id="toSel" class="input"></select>
       </div>
-      <div style="display:flex;align-items:end"><button id="calc" class="secondary">Calculate booking</button></div>
+      <div style="display:flex;align-items:end"><button id="calc" class="primary">Calculate booking</button></div>
     </div>
-    <div id="stops" class="list" style="margin-top:12px"></div>
   </section>
 
-  <!-- Step 3 -->
-  <section id="resultCard" class="card" style="display:none">
-    <div><b>Origin date (Day 1):</b> <span id="outOrigin" class="mono"></span></div>
-    <div style="margin-top:8px"><b>Booking opens:</b> <span id="outBooking" class="mono"></span></div>
-    <div class="small" style="margin-top:6px">08:00 IST, 60 days before origin. Aadhaar KYC required for 08:00–10:00 slot.</div>
+  <section id="resultCard" class="card pop-in" style="display:none">
+    <div><b>Origin date (Day 1):</b> <span id="outOrigin"></span></div>
+    <div style="margin-top:8px"><b>Booking opens:</b> <span id="outBooking" class="pulse"></span></div>
+    <div style="margin-top:6px" class="small">
+      08:00 IST, 60 days before origin. Aadhaar KYC is mandatory for 08:00–10:00 slot.
+      <span id="countdown" class="badge" style="margin-left:8px"></span>
+    </div>
   </section>
 
-  <section class="card">
-    <div class="small">Diagnostics</div>
-    <pre id="diag">{}</pre>
-    <div class="small">Health: <a href="/.netlify/functions/trainStatus?ping=1" target="_blank">/.netlify/functions/trainStatus?ping=1</a></div>
+  <section id="liveCard" class="card" style="display:none">
+    <div class="live"><span class="dotlive"></span><b>Live Status</b></div>
+    <div id="liveMsg" style="margin-top:8px"></div>
   </section>
 
-  <footer>Made with ❤️ by Kaarthik</footer>
+  <footer class="small">Made with ❤️ by <a id="byLink" href="https://www.linkedin.com/in/kaarthik" target="_blank" rel="noopener">Kaarthik</a></footer>
 </main>
 
 <script>
+// Utils
 const DAY_MS=86400000, IST_MIN=330, MS_8AM_IST=((8*60-IST_MIN)*60*1000);
 const fmtDate=(y,m,d)=>new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(Date.UTC(y,m-1,d)));
 const fmtFull=(ms)=>new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',weekday:'short',month:'short',day:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(ms)).replace(/\u200E/g,'');
 const parseYMD=(s)=>({y:+s.slice(0,4),m:+s.slice(4,6),d:+s.slice(6,8)});
+const toYMD=(inputDateStr)=> inputDateStr?.replace(/-/g,"");
 
+// Elements
 const errEl=document.getElementById('err');
-const diagEl=document.getElementById('diag');
 const routeCard=document.getElementById('routeCard');
 const resultCard=document.getElementById('resultCard');
+const liveCard=document.getElementById('liveCard');
+const liveMsg=document.getElementById('liveMsg');
+const metaEl=document.getElementById('meta');
+const routeEl=document.getElementById('route');
 const fromSel=document.getElementById('fromSel');
 const toSel=document.getElementById('toSel');
-const stopsEl=document.getElementById('stops');
 const outOrigin=document.getElementById('outOrigin');
 const outBooking=document.getElementById('outBooking');
-const metaEl=document.getElementById('meta');
+const countdownEl=document.getElementById('countdown');
 
-let originYMD=null;
+let stations=[], originYMD=null, bookingUTC=null;
+let firstClickIndex=null;
 
-document.getElementById('fetch').addEventListener('click', ()=> doFetch(false));
-document.getElementById('demo').addEventListener('click', ()=> doFetch(true));
+// Event wiring
+document.getElementById('fetch').addEventListener('click', fetchRoute);
 document.getElementById('calc').addEventListener('click', calcBooking);
 
-function ymdFromInput(inputEl){
-  // input[type=date] yields "YYYY-MM-DD"
-  const v = inputEl.value;
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
-  return v.replace(/-/g,""); // YYYYMMDD
+// Service worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
 }
 
-async function doFetch(useSample){
-  errEl.textContent=""; routeCard.style.display='none'; resultCard.style.display='none'; diag("{}");
+// Fetch route + live status
+async function fetchRoute(){
+  errEl.textContent=""; routeCard.style.display='none'; resultCard.style.display='none'; liveCard.style.display='none';
+  stations=[]; originYMD=null; bookingUTC=null; firstClickIndex=null;
 
   const tn=(document.getElementById('trainNo').value||'').trim();
-  const pickedYMD = useSample ? "20260112" : ymdFromInput(document.getElementById('journey'));
-
-  if(!useSample && !/^\d{3,5}$/.test(tn)){ errEl.textContent="Enter a valid train number (3–5 digits)."; return; }
-  if(!useSample && !pickedYMD){ errEl.textContent="Pick the journey date (calendar)."; return; }
+  const ymd=toYMD(document.getElementById('journey').value);
+  if(!/^\d{3,5}$/.test(tn)){ errEl.textContent="Enter a valid train number (3–5 digits)."; return; }
+  if(!/^\d{8}$/.test(ymd||"")) { errEl.textContent="Pick the journey date."; return; }
 
   const url=new URL('/.netlify/functions/trainStatus', location.origin);
-  if(useSample){ url.searchParams.set('sample','1'); }
-  else{
-    url.searchParams.set('train_number', tn);
-    url.searchParams.set('departure_date', pickedYMD);
-  }
-
-  let status=null, text="";
-  try{
-    const res=await fetch(url.toString());
-    status=res.status;
-    text=await res.text();
-    diag({called:url.toString(), status, body:text.slice(0,800)});
-    if(!res.ok){ errEl.textContent="Function error (see Diagnostics)."; return; }
-  }catch(e){
-    errEl.textContent="Could not reach Netlify Function (check deployment).";
-    diag({called:url.toString(), status, body:String(e)});
-    return;
-  }
+  url.searchParams.set('train_number', tn);
+  url.searchParams.set('departure_date', ymd);
 
   let payload;
-  try{ payload=JSON.parse(text); }catch{ errEl.textContent="Invalid JSON from function"; return; }
+  try{
+    const res=await fetch(url.toString());
+    const text=await res.text();
+    if(!res.ok) { errEl.textContent="API error. Try a different date or train."; return; }
+    payload=JSON.parse(text);
+  }catch(e){ errEl.textContent="Could not reach server."; return; }
 
-  const brief = payload.brief || {};
-  const stations = brief.stations || [];
-  if(!stations.length){ errEl.textContent="No station data returned."; return; }
+  const brief=payload.brief||{};
+  stations=brief.stations||[];
+  if(!stations.length){ errEl.textContent="No station data for that run."; return; }
 
-  // origin date: prefer first actual departure, else earliest actual, else pickedYMD
+  // Determine origin date
   const first=stations[0];
-  let org = first.actDepDate || first.actArrDate;
+  let org=first.actDepDate||first.actArrDate||ymd;
   if(!org){
     const mins=stations.map(s=>s.actDepDate||s.actArrDate).filter(Boolean).sort();
-    org = mins[0] || pickedYMD;
+    org=mins[0]||ymd;
   }
-  originYMD = parseYMD(org);
+  originYMD=parseYMD(org);
 
-  metaEl.textContent=[
-    brief.trainNumber ? `Train: ${brief.trainNumber}${brief.trainName?(" — "+brief.trainName):""}` : null,
+  // Meta + live status
+  const cleanMsg = (brief.train_status_message||"").replace(/<[^>]+>/g,'').trim();
+  metaEl.textContent = [
+    brief.trainNumber ? `Train: ${brief.trainNumber}` : null,
     brief.current_station ? `Current: ${brief.current_station}` : null,
-    brief.train_status_message ? brief.train_status_message.replace(/<[^>]*>/g,'') : null
+    cleanMsg || null
   ].filter(Boolean).join(" • ");
 
+  if (brief.current_station || cleanMsg) {
+    liveCard.style.display='';
+    liveMsg.textContent = cleanMsg || `Current station: ${brief.current_station}`;
+  }
+
+  // Populate selectors
   fromSel.innerHTML = stations.map((s,i)=>`<option value="${i}">${s.code} — ${s.name}</option>`).join('');
   toSel.innerHTML   = stations.map((s,i)=>`<option value="${i}">${s.code} — ${s.name}</option>`).join('');
   fromSel.value="0"; toSel.value=String(stations.length-1);
 
-  stopsEl.innerHTML = stations.map(s=>{
-    const arr = s.actArr && s.actArr!=='--' ? s.actArr : (s.planArr||'--:--');
-    const dep = s.actDep && s.actDep!=='--' ? s.actDep : (s.planDep||'--:--');
-    return `<div class="stop"><div class="mono">${s.code}</div><div>${s.name}</div><div class="mono">Arr ${arr}</div><div class="mono">Dep ${dep}</div></div>`;
-  }).join('');
+  // Render interactive route map
+  renderRouteMap(brief.current_station||null);
 
   routeCard.style.display='';
 }
 
-function calcBooking(){
-  if(!originYMD){ errEl.textContent="Fetch route first."; return; }
-  const originUTC = Date.UTC(originYMD.y, originYMD.m-1, originYMD.d);
-  const bookingUTC = originUTC - 60*DAY_MS + ((8*60-330)*60*1000); // 08:00 IST
-  outOrigin.textContent = fmtDate(originYMD.y, originYMD.m, originYMD.d);
-  outBooking.textContent = fmtFull(bookingUTC)+" IST";
-  resultCard.style.display='';
+// Build the interactive route map
+function renderRouteMap(currentCode){
+  routeEl.innerHTML = "";
+  stations.forEach((s, i) => {
+    if (i>0) {
+      const conn=document.createElement('div');
+      conn.className="connector";
+      routeEl.appendChild(conn);
+    }
+    const node=document.createElement('div');
+    node.className="station";
+    node.dataset.index=i;
+
+    const dot=document.createElement('div');
+    dot.className="dot";
+    if (currentCode && s.code===currentCode) dot.classList.add('current');
+    dot.title = `${s.code} • ${s.name}`;
+    dot.addEventListener('click', ()=>onStationClick(i));
+
+    const code=document.createElement('div');
+    code.className="stCode";
+    code.textContent=s.code;
+
+    const name=document.createElement('div');
+    name.className="stName";
+    name.textContent=s.name;
+
+    node.appendChild(dot);
+    node.appendChild(code);
+    node.appendChild(name);
+    routeEl.appendChild(node);
+  });
+  updateHighlights();
 }
 
-function diag(obj){ diagEl.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj,null,2); }
+function onStationClick(idx){
+  // First click => start; second click => end (must be after start)
+  if (firstClickIndex==null) {
+    firstClickIndex = idx;
+    fromSel.value = String(idx);
+  } else {
+    if (idx <= firstClickIndex) {
+      // If second is before or equal, treat it as the new start
+      firstClickIndex = idx;
+      fromSel.value = String(idx);
+    } else {
+      toSel.value = String(idx);
+      firstClickIndex = null; // reset
+    }
+  }
+  updateHighlights();
+}
+
+function updateHighlights(){
+  const start = +fromSel.value || 0;
+  const end = +toSel.value || (stations.length-1);
+  const nodes = Array.from(routeEl.querySelectorAll('.station'));
+  nodes.forEach((n, i) => {
+    const d = n.querySelector('.dot');
+    d.classList.remove('selected','range');
+    if (i===start || i===end) d.classList.add('selected');
+    if (i>start && i<end) d.classList.add('range');
+  });
+}
+
+// Booking calculation and countdown
+function calcBooking(){
+  if(!originYMD) { errEl.textContent="Fetch route first."; return; }
+  const start = +fromSel.value, end = +toSel.value;
+  if (!Number.isInteger(start) || !Number.isInteger(end) || end<=start) {
+    errEl.textContent="Pick a valid Start and End in order.";
+    return;
+  }
+  const originUTC = Date.UTC(originYMD.y, originYMD.m-1, originYMD.d);
+  bookingUTC = originUTC - 60*DAY_MS + ((8*60-330)*60*1000); // 08:00 IST
+
+  outOrigin.textContent = fmtDate(originYMD.y, originYMD.m, originYMD.d);
+  outBooking.textContent = fmtFull(bookingUTC) + " IST";
+  resultCard.style.display='';
+
+  renderCountdown();
+  if (window._cd) clearInterval(window._cd);
+  window._cd = setInterval(renderCountdown, 30000);
+}
+
+function renderCountdown(){
+  if (!bookingUTC) { countdownEl.textContent=""; return; }
+  const diff = bookingUTC - Date.now();
+  if (diff <= 0) { countdownEl.textContent = "Open now"; return; }
+  const d=Math.floor(diff/DAY_MS), h=Math.floor((diff%DAY_MS)/3600000), m=Math.floor((diff%3600000)/60000);
+  countdownEl.textContent = `Opens in ${d}d ${h}h ${m}m`;
+}
 </script>
 </body>
 </html>
