@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>IRCTC Booking Date Calculator</title>
+<style>
+body{background:#0b0f1a;color:#e8edf5;font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;padding:18px;display:flex;justify-content:center}
+main{width:100%;max-width:920px;display:flex;flex-direction:column;gap:14px}
+.card{background:#0e1422;border:1px solid #1a2538;border-radius:14px;padding:16px}
+h1{margin:0 0 6px;font-size:22px}
+label{display:block;font-size:12px;color:#9fb0c7;margin-bottom:6px}
+input,select,button{font:inherit}
+.input{width:100%;border:1px solid #1a2538;border-radius:12px;padding:12px;background:transparent;color:#e8edf5}
+.row{display:grid;grid-template-columns:1fr 1fr auto auto;gap:12px}
+@media(max-width:860px){.row{grid-template-columns:1fr}}
+button{border:1px solid #1a2538;border-radius:12px;padding:10px 12px;background:#4da3ff;color:#051225;cursor:pointer}
+button.secondary{background:#163056;color:#e8edf5}
+.small{font-size:12px;color:#9fb0c7}
+.err{color:#fca5a5}
+.list{display:grid;gap:8px}
+.stop{display:grid;grid-template-columns:90px 1fr 110px 110px;gap:8px;align-items:center;border:1px solid #1a2538;border-radius:10px;padding:8px;background:rgba(255,255,255,.03)}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+pre{white-space:pre-wrap;background:#0a0f19;border:1px solid #1a2538;border-radius:10px;padding:10px;max-height:260px;overflow:auto}
+footer{text-align:center;margin-top:8px;color:#9fb0c7}
+</style>
+</head>
+<body>
+<main>
+  <h1>IRCTC Booking Date Calculator</h1>
+  <div class="small">Booking opens at 08:00 IST, 60 days before the train’s origin start date.</div>
+
+  <!-- Step 1 -->
+  <section class="card">
+    <div class="row">
+      <div>
+        <label>Train number</label>
+        <input id="trainNo" class="input" placeholder="e.g., 16527" inputmode="numeric" autocomplete="off">
+      </div>
+      <div>
+        <label>Journey date</label>
+        <!-- Native calendar, guaranteed everywhere -->
+        <input id="journey" class="input" type="date">
+        <div class="small">Pick from calendar (required).</div>
+      </div>
+      <div style="display:flex;align-items:end"><button id="fetch">Fetch route</button></div>
+      <div style="display:flex;align-items:end"><button id="demo" class="secondary" title="No network">Use sample</button></div>
+    </div>
+    <div id="err" class="small err"></div>
+  </section>
+
+  <!-- Step 2 -->
+  <section id="routeCard" class="card" style="display:none">
+    <div id="meta" class="small"></div>
+    <div class="row" style="margin-top:10px;grid-template-columns:1fr 1fr auto">
+      <div>
+        <label>Start (boarding)</label>
+        <select id="fromSel" class="input"></select>
+      </div>
+      <div>
+        <label>End (destination)</label>
+        <select id="toSel" class="input"></select>
+      </div>
+      <div style="display:flex;align-items:end"><button id="calc" class="secondary">Calculate booking</button></div>
+    </div>
+    <div id="stops" class="list" style="margin-top:12px"></div>
+  </section>
+
+  <!-- Step 3 -->
+  <section id="resultCard" class="card" style="display:none">
+    <div><b>Origin date (Day 1):</b> <span id="outOrigin" class="mono"></span></div>
+    <div style="margin-top:8px"><b>Booking opens:</b> <span id="outBooking" class="mono"></span></div>
+    <div class="small" style="margin-top:6px">08:00 IST, 60 days before origin. Aadhaar KYC required for 08:00–10:00 slot.</div>
+  </section>
+
+  <section class="card">
+    <div class="small">Diagnostics</div>
+    <pre id="diag">{}</pre>
+    <div class="small">Health: <a href="/.netlify/functions/trainStatus?ping=1" target="_blank">/.netlify/functions/trainStatus?ping=1</a></div>
+  </section>
+
+  <footer>Made with ❤️ by Kaarthik</footer>
+</main>
+
+<script>
+const DAY_MS=86400000, IST_MIN=330, MS_8AM_IST=((8*60-IST_MIN)*60*1000);
+const fmtDate=(y,m,d)=>new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(Date.UTC(y,m-1,d)));
+const fmtFull=(ms)=>new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',weekday:'short',month:'short',day:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(ms)).replace(/\u200E/g,'');
+const parseYMD=(s)=>({y:+s.slice(0,4),m:+s.slice(4,6),d:+s.slice(6,8)});
+
+const errEl=document.getElementById('err');
+const diagEl=document.getElementById('diag');
+const routeCard=document.getElementById('routeCard');
+const resultCard=document.getElementById('resultCard');
+const fromSel=document.getElementById('fromSel');
+const toSel=document.getElementById('toSel');
+const stopsEl=document.getElementById('stops');
+const outOrigin=document.getElementById('outOrigin');
+const outBooking=document.getElementById('outBooking');
+const metaEl=document.getElementById('meta');
+
+let originYMD=null;
+
+document.getElementById('fetch').addEventListener('click', ()=> doFetch(false));
+document.getElementById('demo').addEventListener('click', ()=> doFetch(true));
+document.getElementById('calc').addEventListener('click', calcBooking);
+
+function ymdFromInput(inputEl){
+  // input[type=date] yields "YYYY-MM-DD"
+  const v = inputEl.value;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+  return v.replace(/-/g,""); // YYYYMMDD
+}
+
+async function doFetch(useSample){
+  errEl.textContent=""; routeCard.style.display='none'; resultCard.style.display='none'; diag("{}");
+
+  const tn=(document.getElementById('trainNo').value||'').trim();
+  const pickedYMD = useSample ? "20260112" : ymdFromInput(document.getElementById('journey'));
+
+  if(!useSample && !/^\d{3,5}$/.test(tn)){ errEl.textContent="Enter a valid train number (3–5 digits)."; return; }
+  if(!useSample && !pickedYMD){ errEl.textContent="Pick the journey date (calendar)."; return; }
+
+  const url=new URL('/.netlify/functions/trainStatus', location.origin);
+  if(useSample){ url.searchParams.set('sample','1'); }
+  else{
+    url.searchParams.set('train_number', tn);
+    url.searchParams.set('departure_date', pickedYMD);
+  }
+
+  let status=null, text="";
+  try{
+    const res=await fetch(url.toString());
+    status=res.status;
+    text=await res.text();
+    diag({called:url.toString(), status, body:text.slice(0,800)});
+    if(!res.ok){ errEl.textContent="Function error (see Diagnostics)."; return; }
+  }catch(e){
+    errEl.textContent="Could not reach Netlify Function (check deployment).";
+    diag({called:url.toString(), status, body:String(e)});
+    return;
+  }
+
+  let payload;
+  try{ payload=JSON.parse(text); }catch{ errEl.textContent="Invalid JSON from function"; return; }
+
+  const brief = payload.brief || {};
+  const stations = brief.stations || [];
+  if(!stations.length){ errEl.textContent="No station data returned."; return; }
+
+  // origin date: prefer first actual departure, else earliest actual, else pickedYMD
+  const first=stations[0];
+  let org = first.actDepDate || first.actArrDate;
+  if(!org){
+    const mins=stations.map(s=>s.actDepDate||s.actArrDate).filter(Boolean).sort();
+    org = mins[0] || pickedYMD;
+  }
+  originYMD = parseYMD(org);
+
+  metaEl.textContent=[
+    brief.trainNumber ? `Train: ${brief.trainNumber}${brief.trainName?(" — "+brief.trainName):""}` : null,
+    brief.current_station ? `Current: ${brief.current_station}` : null,
+    brief.train_status_message ? brief.train_status_message.replace(/<[^>]*>/g,'') : null
+  ].filter(Boolean).join(" • ");
+
+  fromSel.innerHTML = stations.map((s,i)=>`<option value="${i}">${s.code} — ${s.name}</option>`).join('');
+  toSel.innerHTML   = stations.map((s,i)=>`<option value="${i}">${s.code} — ${s.name}</option>`).join('');
+  fromSel.value="0"; toSel.value=String(stations.length-1);
+
+  stopsEl.innerHTML = stations.map(s=>{
+    const arr = s.actArr && s.actArr!=='--' ? s.actArr : (s.planArr||'--:--');
+    const dep = s.actDep && s.actDep!=='--' ? s.actDep : (s.planDep||'--:--');
+    return `<div class="stop"><div class="mono">${s.code}</div><div>${s.name}</div><div class="mono">Arr ${arr}</div><div class="mono">Dep ${dep}</div></div>`;
+  }).join('');
+
+  routeCard.style.display='';
+}
+
+function calcBooking(){
+  if(!originYMD){ errEl.textContent="Fetch route first."; return; }
+  const originUTC = Date.UTC(originYMD.y, originYMD.m-1, originYMD.d);
+  const bookingUTC = originUTC - 60*DAY_MS + ((8*60-330)*60*1000); // 08:00 IST
+  outOrigin.textContent = fmtDate(originYMD.y, originYMD.m, originYMD.d);
+  outBooking.textContent = fmtFull(bookingUTC)+" IST";
+  resultCard.style.display='';
+}
+
+function diag(obj){ diagEl.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj,null,2); }
+</script>
+</body>
+</html>
