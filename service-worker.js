@@ -1,17 +1,18 @@
-const CACHE = "irctc-booking-v1";
+// bump version to break old cache
+const CACHE = "irctc-booking-v3";
 const ASSETS = [
   "/",
   "/index.html",
   "/manifest.webmanifest"
 ];
 
-// Install: precache core assets
+// Install: precache core shell
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
   self.skipWaiting();
 });
 
-// Activate: cleanup old caches
+// Activate: remove old caches
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches.keys().then(keys =>
@@ -21,12 +22,18 @@ self.addEventListener("activate", (e) => {
   self.clients.claim();
 });
 
-// Fetch: network-first for functions, cache-first for everything else
+// Fetch: network-first for HTML and functions; cache-first for other same-origin assets
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
+  const isHTML = e.request.mode === "navigate" || (e.request.headers.get("accept")||"").includes("text/html");
   const isFn = url.pathname.startsWith("/.netlify/functions/");
-  if (isFn) {
-    // Network-first for live data
+
+  // Never intercept third-party CDNs (like jsDelivr) — let the network handle them
+  const thirdParty = url.origin !== self.location.origin;
+  if (thirdParty) return;
+
+  if (isHTML || isFn) {
+    // Network-first so updates aren’t stuck behind cache
     e.respondWith(
       fetch(e.request).then(r => {
         const copy = r.clone();
@@ -35,9 +42,13 @@ self.addEventListener("fetch", (e) => {
       }).catch(() => caches.match(e.request))
     );
   } else {
-    // Cache-first for app shell
+    // Cache-first for local static assets
     e.respondWith(
-      caches.match(e.request).then(cached => cached || fetch(e.request))
+      caches.match(e.request).then(cached => cached || fetch(e.request).then(r => {
+        const copy = r.clone();
+        caches.open(CACHE).then(c => c.put(e.request, copy));
+        return r;
+      }))
     );
   }
 });
