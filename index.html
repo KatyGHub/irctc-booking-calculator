@@ -70,6 +70,7 @@ footer a:hover{text-decoration:underline}
       <div style="display:flex;align-items:end"><button id="fetch" class="primary">Fetch route</button></div>
     </div>
     <div id="err" class="small err"></div>
+    <div id="warn" class="small" style="color:#f59e0b"></div>
   </section>
 
   <section id="routeCard" class="card" style="display:none">
@@ -123,6 +124,7 @@ document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{if(!_flatpickr
 const DAY_MS=86400000;
 const fmtDate=(y,m,d)=>new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(Date.UTC(y,m-1,d)));
 const fmtFull=(ms)=>new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',weekday:'short',month:'short',day:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(ms)).replace(/\u200E/g,'');
+const warnEl = document.getElementById('warn');
 
 const errEl=document.getElementById('err');
 const routeCard=document.getElementById('routeCard');
@@ -152,7 +154,9 @@ function getSelectedYMD(){
 }
 
 async function fetchRoute(){
-  errEl.textContent=""; routeCard.style.display='none'; resultCard.style.display='none'; liveCard.style.display='none';
+  errEl.textContent="";
+  warnEl.textContent = "";
+  routeCard.style.display='none'; resultCard.style.display='none'; liveCard.style.display='none';
   stations=[]; bookingUTC=null; firstClickIndex=null;
 
   const tn=(document.getElementById('trainNo').value||'').trim();
@@ -224,22 +228,43 @@ function calcBooking(){
     errEl.textContent = "Pick a valid Start and End in order.";
     return;
   }
+  errEl.textContent = "";
+  warnEl.textContent = "";
 
   const s = stations[start];
   const dayCount = Math.max(1, parseInt(s.dayCount || "1", 10));
 
-  // Journey date the user picked (boarding date at that station)
-  const jStr = (journeyYMD || "").trim();
-  if (!/^\d{8}$/.test(jStr)) {
+  // Station date for THIS run from the API (best source). Fallback to user-picked date.
+  const stationDateStr = (s.actDepDate || s.actArrDate || "").trim();
+  const pickedDateStr  = (journeyYMD || "").trim();
+
+  // If API gave us the true station date and it differs from the user's pick, correct it.
+  let useStationDateStr = stationDateStr || pickedDateStr;
+  if (/^\d{8}$/.test(stationDateStr) && /^\d{8}$/.test(pickedDateStr) && stationDateStr !== pickedDateStr) {
+    // Friendly note + auto-correct calendar
+    const sdY = +stationDateStr.slice(0,4), sdM = +stationDateStr.slice(4,6), sdD = +stationDateStr.slice(6,8);
+    warnEl.textContent = `Heads up: for this run, ${s.code} is on ${new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric'}).format(new Date(Date.UTC(sdY,sdM-1,sdD)))}. We adjusted the journey date to match.`;
+    try {
+      if (window.flatpickr && flatpickr?.instances?.length) {
+        // setDate expects yyyy-mm-dd or a Date; give yyyy-mm-dd
+        const iso = `${sdY}-${String(sdM).padStart(2,'0')}-${String(sdD).padStart(2,'0')}`;
+        flatpickr.instances[0].setDate(iso, true);
+      }
+    } catch(_) {}
+    journeyYMD = stationDateStr;       // keep our internal state consistent
+    useStationDateStr = stationDateStr; // and calculate from this
+  }
+
+  if (!/^\d{8}$/.test(useStationDateStr)) {
     errEl.textContent = "Pick a valid journey date first.";
     return;
   }
 
-  const jY = +jStr.slice(0,4), jM = +jStr.slice(4,6), jD = +jStr.slice(6,8);
-  const journeyUTC = Date.UTC(jY, jM - 1, jD);
+  const sY = +useStationDateStr.slice(0,4), sM = +useStationDateStr.slice(4,6), sD = +useStationDateStr.slice(6,8);
+  const stationUTC = Date.UTC(sY, sM - 1, sD);
 
-  // Correct origin: journey date − (dayCount − 1)
-  const originUTC = journeyUTC - (dayCount - 1) * DAY_MS;
+  // Correct origin: station’s calendar day minus (dayCount - 1)
+  const originUTC = stationUTC - (dayCount - 1) * DAY_MS;
 
   const o = new Date(originUTC);
   const oY = o.getUTCFullYear(), oM = o.getUTCMonth() + 1, oD = o.getUTCDate();
@@ -247,7 +272,7 @@ function calcBooking(){
   // Booking at 08:00 IST, 60 days before origin
   bookingUTC = originUTC - 60 * DAY_MS + ((8 * 60 - 330) * 60 * 1000);
 
-  outOrigin.textContent = fmtDate(oY, oM, oD);
+  outOrigin.textContent  = fmtDate(oY, oM, oD);
   outBooking.textContent = fmtFull(bookingUTC) + " IST";
   resultCard.style.display = '';
 
