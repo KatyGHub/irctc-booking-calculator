@@ -88,7 +88,6 @@ footer a:hover{text-decoration:underline}
 
   <section id="routeCard" class="card" style="display:none">
     <div id="meta" class="small"></div>
-    <!-- Route map wrapper: hidden in Booking tab, visible in Live tab -->
     <div id="routeScroll" class="routeWrap"><div id="route" class="route"></div></div>
     <div class="helper">Tip: Click one station for Start, then another later station for End. You can still adjust using the dropdowns.</div>
     <div class="row" style="grid-template-columns:1fr 1fr auto;margin-top:10px">
@@ -159,31 +158,47 @@ const routeScroll=document.getElementById('routeScroll');
 const tabBooking=document.getElementById('tabBooking');
 const tabLive=document.getElementById('tabLive');
 
-let stations=[], bookingUTC=null, firstClickIndex=null, journeyYMD=null;
-let currentStationCode = null; // global, used by renderRouteMap
+const fetchBtn=document.getElementById('fetch');
+const trackBtn=document.getElementById('trackLive');
 
-// Mode switching: booking vs live
+let stations=[], bookingUTC=null, firstClickIndex=null, journeyYMD=null;
+let currentStationCode = null;
+let currentMode='booking';   // 'booking' or 'live'
+
+/* Mode switching: booking vs live */
 function setMode(mode){
+  currentMode = mode;
+
   if(mode==='booking'){
     tabBooking.classList.add('active');
     tabLive.classList.remove('active');
-    if(routeScroll) routeScroll.classList.add('hidden');   // hide map
-    if(liveCard)    liveCard.classList.add('hidden');      // hide live status
-    if(resultCard)  resultCard.classList.remove('hidden'); // show booking card
+
+    fetchBtn.style.display='';
+    trackBtn.style.display='none';
+
+    if(routeScroll) routeScroll.classList.add('hidden');
+    if(liveCard)    liveCard.classList.add('hidden');
+    if(resultCard)  resultCard.classList.remove('hidden');
   }else{
     tabLive.classList.add('active');
     tabBooking.classList.remove('active');
-    if(routeScroll) routeScroll.classList.remove('hidden'); // show map
-    if(liveCard)    liveCard.classList.remove('hidden');    // show live status
-    if(resultCard)  resultCard.classList.add('hidden');     // hide booking card
+
+    fetchBtn.style.display='none';
+    trackBtn.style.display='';
+
+    if(routeScroll) routeScroll.classList.remove('hidden');
+    if(liveCard)    liveCard.classList.remove('hidden');
+    if(resultCard)  resultCard.classList.add('hidden');
+  }
+
+  // Rebuild meta line using current mode (if we already have data)
+  if (stations.length) {
+    rebuildMeta();
   }
 }
 
-// Tab click handlers
 tabBooking.addEventListener('click',()=>setMode('booking'));
 tabLive.addEventListener('click',()=>setMode('live'));
-
-// Default mode
 setMode('booking');
 
 document.getElementById('fetch').addEventListener('click', fetchRoute);
@@ -194,8 +209,8 @@ if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.se
 
 function getSelectedYMD(){
   const el=document.getElementById('journey'); const v=(el.value||'').trim();
-  if(/^\d{8}$/.test(v)) return v;                   // flatpickr format Ymd
-  if(/^\d{4}-\d{2}-\d{2}$/.test(v)) return v.replace(/-/g,''); // native fallback
+  if(/^\d{8}$/.test(v)) return v;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(v)) return v.replace(/-/g,'');
   return null;
 }
 function getTodayYMDIST() {
@@ -230,10 +245,9 @@ async function fetchRoute() {
     return;
   }
 
-  journeyYMD = ymd; // this is used by calcBooking
+  journeyYMD = ymd;
   await loadStatus(tn, ymd, { scrollToCurrent: false });
 
-  // After fetching route we stay in Booking mode
   setMode('booking');
 }
 
@@ -253,20 +267,18 @@ async function trackLive() {
     return;
   }
 
-  // Prefer the date selected in the calendar (same run as "Fetch route")
   let ymd = getSelectedYMD();
-
   if (!/^\d{8}$/.test(ymd || "")) {
-    // No date selected – fall back to "today" and tell the user
     ymd = getTodayYMDIST();
     warnEl.textContent = "No journey date selected. Tracking today’s run for this train.";
   }
 
   await loadStatus(tn, ymd, { scrollToCurrent: true });
 
-  // Show Live mode after tracking
   setMode('live');
 }
+
+let lastBrief = null;
 
 async function loadStatus(train_number, departureYMD, options = {}) {
   const { scrollToCurrent = false } = options;
@@ -290,6 +302,8 @@ async function loadStatus(train_number, departureYMD, options = {}) {
   }
 
   const brief = payload.brief || {};
+  lastBrief = brief;
+
   stations = brief.stations || [];
   if (!stations.length) {
     errEl.textContent = "No station data for that run.";
@@ -299,18 +313,13 @@ async function loadStatus(train_number, departureYMD, options = {}) {
   currentStationCode = brief.current_station || null;
 
   const cleanMsg = (brief.train_status_message || "").replace(/<[^>]+>/g, "").trim();
-  metaEl.textContent = [
-    brief.trainNumber ? `Train: ${brief.trainNumber}` : null,
-    currentStationCode ? `Current: ${currentStationCode}` : null,
-    cleanMsg || null
-  ].filter(Boolean).join(" • ");
+  rebuildMeta(cleanMsg);
 
   if (currentStationCode || cleanMsg) {
     liveCard.style.display = '';
     liveMsg.textContent = cleanMsg || `Current station: ${currentStationCode}`;
   }
 
-  // Populate dropdowns
   fromSel.innerHTML = stations.map((s, i) => `<option value="${i}">${s.code} — ${s.name}</option>`).join('');
   toSel.innerHTML   = stations.map((s, i) => `<option value="${i}">${s.code} — ${s.name}</option>`).join('');
   fromSel.value = "0";
@@ -329,13 +338,34 @@ async function loadStatus(train_number, departureYMD, options = {}) {
   }
 }
 
+// Build meta line differently for booking vs live
+function rebuildMeta(cleanMsgOverride){
+  if (!lastBrief) return;
+  const brief = lastBrief;
+  const cleanMsg = (cleanMsgOverride !== undefined)
+    ? cleanMsgOverride
+    : (brief.train_status_message || "").replace(/<[^>]+>/g, "").trim();
+
+  const bits = [];
+  if (brief.trainNumber || brief.trainName || brief.train_name) {
+    const name = brief.trainName || brief.train_name || "";
+    bits.push(name ? `Train: ${brief.trainNumber} — ${name}` : `Train: ${brief.trainNumber}`);
+  }
+
+  if (currentMode === 'live') {
+    if (currentStationCode) bits.push(`Current: ${currentStationCode}`);
+    if (cleanMsg) bits.push(cleanMsg);
+  }
+
+  metaEl.textContent = bits.filter(Boolean).join(" • ");
+}
+
 function renderRouteMap(currentCode) {
   routeEl.innerHTML = "";
 
   const liveCode = currentCode || currentStationCode || null;
 
   stations.forEach((s, i) => {
-
     if (i > 0) {
       const c = document.createElement('div');
       c.className = "connector";
@@ -386,7 +416,7 @@ function updateHighlights(){
   });
 }
 
-/* Fixed booking logic: origin = station-date − (dayCount−1) days */
+/* Booking logic */
 function calcBooking(){
   if (!stations.length) { errEl.textContent = "Fetch route first."; return; }
 
@@ -408,11 +438,6 @@ function calcBooking(){
   const addDaysUTC = (utc, d) => utc + d*DAY_MS;
 
   const ymdToUTC = (ymd) => Date.UTC(+ymd.slice(0,4), +ymd.slice(4,6)-1, +ymd.slice(6,8));
-  const utcToYMD = (utc) => {
-    const d = new Date(utc);
-    const y = d.getUTCFullYear(), m = String(d.getUTCMonth()+1).padStart(2,'0'), dd = String(d.getUTCDate()).padStart(2,'0');
-    return `${y}${m}${dd}`;
-  };
 
   let originUTC, stationUTC, warnMsg = "";
 
@@ -453,7 +478,6 @@ function calcBooking(){
   if (window._cd) clearInterval(window._cd);
   window._cd = setInterval(renderCountdown, 30000);
 
-  // Ensure we’re on Booking tab after calculation
   setMode('booking');
 }
 
