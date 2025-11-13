@@ -90,11 +90,14 @@ footer a:hover{text-decoration:underline}
     <div id="meta" class="small"></div>
     <div id="routeScroll" class="routeWrap"><div id="route" class="route"></div></div>
     <div class="helper">Tip: Click one station for Start, then another later station for End. You can still adjust using the dropdowns.</div>
-    <div class="row" style="grid-template-columns:1fr 1fr auto;margin-top:10px">
-      <div><label>Start (boarding)</label><select id="fromSel" class="input"></select></div>
-      <div><label>End (destination)</label><select id="toSel" class="input"></select></div>
-      <div style="display:flex;align-items:end"><button id="calc" class="primary">Calculate booking</button></div>
-    </div>
+    <div id="bookingOnly">
+  <div class="row" style="grid-template-columns:1fr 1fr auto;margin-top:10px">
+    <div><label>Start (boarding)</label><select id="fromSel" class="input"></select></div>
+    <div><label>End (destination)</label><select id="toSel" class="input"></select></div>
+    <div style="display:flex;align-items:end"><button id="calc" class="primary">Calculate booking</button></div>
+  </div>
+</div>
+  
   </section>
 
   <section id="resultCard" class="card pop-in" style="display:none">
@@ -169,26 +172,30 @@ let currentMode='booking';   // 'booking' or 'live'
 function setMode(mode){
   currentMode = mode;
 
-  if(mode==='booking'){
+  if (mode === 'booking') {
     tabBooking.classList.add('active');
     tabLive.classList.remove('active');
 
-    fetchBtn.style.display='';
-    trackBtn.style.display='none';
+    fetchBtn.style.display = '';
+    trackBtn.style.display = 'none';
 
-    if(routeScroll) routeScroll.classList.add('hidden');
-    if(liveCard)    liveCard.classList.add('hidden');
-    if(resultCard)  resultCard.classList.remove('hidden');
-  }else{
+    if (routeScroll) routeScroll.classList.add('hidden');  // no route map on booking tab
+    if (liveCard)    liveCard.classList.add('hidden');
+    if (resultCard)  resultCard.classList.remove('hidden');
+
+    if (bookingRow)  bookingRow.style.display = '';        // SHOW station selectors + Calculate
+  } else {
     tabLive.classList.add('active');
     tabBooking.classList.remove('active');
 
-    fetchBtn.style.display='none';
-    trackBtn.style.display='';
+    fetchBtn.style.display = 'none';
+    trackBtn.style.display = '';
 
-    if(routeScroll) routeScroll.classList.remove('hidden');
-    if(liveCard)    liveCard.classList.remove('hidden');
-    if(resultCard)  resultCard.classList.add('hidden');
+    if (routeScroll) routeScroll.classList.remove('hidden'); // show route map on live tab
+    if (liveCard)    liveCard.classList.remove('hidden');
+    if (resultCard)  resultCard.classList.add('hidden');
+
+    if (bookingRow)  bookingRow.style.display = 'none';    // HIDE station selectors + Calculate
   }
 
   // Rebuild meta line using current mode (if we already have data)
@@ -223,17 +230,25 @@ function getTodayYMDIST() {
   return `${y}${m}${d}`;
 }
 
-async function fetchRoute() {
+function resetUi() {
   errEl.textContent = "";
   warnEl.textContent = "";
-  routeCard.style.display = "none";
+
+  // Hide everything for a clean state; setMode() will re-show what it needs
+  routeCard.style.display  = "none";
   resultCard.style.display = "none";
-  liveCard.style.display = "none";
+  liveCard.style.display   = "none";
+
   stations = [];
   bookingUTC = null;
   firstClickIndex = null;
+}
 
-  const tn = (document.getElementById('trainNo').value || '').trim();
+/* Booking tab: fetch route + populate dropdowns */
+async function fetchRoute() {
+  resetUi();
+
+  const tn  = (document.getElementById('trainNo').value || "").trim();
   const ymd = getSelectedYMD();
 
   if (!/^\d{3,5}$/.test(tn)) {
@@ -245,23 +260,18 @@ async function fetchRoute() {
     return;
   }
 
-  journeyYMD = ymd;
+  journeyYMD = ymd;                     // used later in calcBooking
   await loadStatus(tn, ymd, { scrollToCurrent: false });
 
-  setMode('booking');
+  // Show booking UI: station selectors + result card, no route map / live card
+  setMode("booking");
 }
 
+/* Live tracking tab: focus on current position + route map */
 async function trackLive() {
-  errEl.textContent = "";
-  warnEl.textContent = "";
-  routeCard.style.display = "none";
-  resultCard.style.display = "none";
-  liveCard.style.display = "none";
-  stations = [];
-  bookingUTC = null;
-  firstClickIndex = null;
+  resetUi();
 
-  const tn = (document.getElementById('trainNo').value || '').trim();
+  const tn = (document.getElementById('trainNo').value || "").trim();
   if (!/^\d{3,5}$/.test(tn)) {
     errEl.textContent = "Enter a valid train number (3–5 digits).";
     return;
@@ -275,7 +285,8 @@ async function trackLive() {
 
   await loadStatus(tn, ymd, { scrollToCurrent: true });
 
-  setMode('live');
+  // Show live tracking UI: route map + live card, hide booking row / result card
+  setMode("live");
 }
 
 let lastBrief = null;
