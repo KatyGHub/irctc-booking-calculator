@@ -152,7 +152,7 @@ button.primary{
   line-height:1.2;
 }
 .timeSch{
-  color:var(--muted);
+  color:var(--fg); /* chart time in white */
 }
 .timeAct{
   font-weight:500;
@@ -652,95 +652,100 @@ function rebuildMeta(cleanMsgOverride){
 
 /* Route rendering with passed segments, train icon and schedule/actual times */
 function renderRouteMap(currentCode){
-  routeEl.innerHTML="";
+  routeEl.innerHTML = "";
 
-  const liveCode=currentCode || currentStationCode || null;
-  const liveMode=(currentMode==='live');
+  const liveCode = currentCode || currentStationCode || null;
+  const liveMode = (currentMode === 'live');
   const currentIndex = liveCode
-    ? stations.findIndex(s=>s.code===liveCode)
+    ? stations.findIndex(s => s.code === liveCode)
     : -1;
-  const lp = (typeof lastPassedIndex==='number') ? lastPassedIndex : null;
-  const nextIndex = (lp!=null && lp+1<stations.length) ? lp+1 : null;
+  const lp = (typeof lastPassedIndex === 'number') ? lastPassedIndex : null;
+  const nextIndex = (lp != null && lp + 1 < stations.length) ? lp + 1 : null;
 
-  stations.forEach((s,i)=>{
-    if(i>0){
-      const conn=document.createElement('div');
-      conn.className="connector";
+  stations.forEach((s, i) => {
+    // Connector between stations
+    if (i > 0) {
+      const conn = document.createElement('div');
+      conn.className = "connector";
 
-      if(liveMode){
-        if(lp!=null && i-1<=lp){
+      if (liveMode) {
+        if (lp != null && i - 1 <= lp) {
           conn.classList.add('connector-past');
         }
-        if(nextIndex!=null && i-1===lp){
+        if (nextIndex != null && i - 1 === lp) {
           conn.classList.add('connector-active');
-          const train=document.createElement('div');
-          train.className="train-icon";
-          train.textContent="🚆";
+          const train = document.createElement('div');
+          train.className = "train-icon";
+          train.textContent = "🚆";
           conn.appendChild(train);
         }
       }
       routeEl.appendChild(conn);
     }
 
-    const node=document.createElement('div');
-    node.className="station";
-    node.dataset.index=i;
+    // Station node
+    const node = document.createElement('div');
+    node.className = "station";
+    node.dataset.index = i;
 
-    const dot=document.createElement('div');
-    dot.className="dot";
+    const dot = document.createElement('div');
+    dot.className = "dot";
 
-    if(liveMode && lp!=null && i<=lp){
+    if (liveMode && lp != null && i <= lp) {
       dot.classList.add('passed');
     }
 
-    if(currentIndex===i){
+    if (currentIndex === i) {
       dot.classList.remove('passed');
       dot.classList.add('current');
-    }else if(!liveMode && liveCode && s.code===liveCode){
+    } else if (!liveMode && liveCode && s.code === liveCode) {
       dot.classList.add('current');
     }
 
-    dot.title=`${s.code} • ${s.name}`;
-    dot.addEventListener('click',()=>onStationClick(i));
+    dot.title = `${s.code} • ${s.name}`;
+    dot.addEventListener('click', () => onStationClick(i));
 
-    const code=document.createElement('div');
-    code.className="stCode";
-    code.textContent=s.code;
+    const code = document.createElement('div');
+    code.className = "stCode";
+    code.textContent = s.code;
 
-    const name=document.createElement('div');
-    name.className="stName";
-    name.textContent=s.name;
+    const name = document.createElement('div');
+    name.className = "stName";
+    name.textContent = s.name;
 
     node.appendChild(dot);
     node.appendChild(code);
     node.appendChild(name);
 
     // Schedule vs actual times (live mode only)
-    if(liveMode){
+    if (liveMode) {
+      // Prefer arrival times, fall back to departure if needed
       const sch = s.schArr || s.stdArr || s.schDep || s.stdDep || "";
       const act = s.actArr || s.actDep || "";
-      if(sch || act){
-        const ti=document.createElement('div');
-        ti.className='timeInfo';
 
-        if(sch){
-          const schEl=document.createElement('div');
-          schEl.className='timeSch';
-          schEl.textContent = `Sch: ${sch}`;
+      if (sch || act) {
+        const ti = document.createElement('div');
+        ti.className = 'timeInfo';
+
+        if (sch) {
+          const schEl = document.createElement('div');
+          schEl.className = 'timeSch';
+          schEl.textContent = `Chart: ${sch}`; // chart time in white
           ti.appendChild(schEl);
         }
 
-        if(act){
-          const actEl=document.createElement('div');
-          actEl.className='timeAct';
+        if (act) {
+          const actEl = document.createElement('div');
+          actEl.className = 'timeAct';
 
-          if(sch && isOnTimeOrEarly(act, sch)){
+          // Green if on/before chart, red if later
+          if (sch && isOnTimeOrEarly(act, sch)) {
             actEl.classList.add('onTime');
-          }else if(sch){
+          } else if (sch) {
             actEl.classList.add('late');
           }
 
-          actEl.textContent = `Arr: ${act}`;
+          actEl.textContent = `Actual: ${act}`;
           ti.appendChild(actEl);
         }
 
