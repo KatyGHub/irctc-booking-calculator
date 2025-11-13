@@ -195,6 +195,22 @@ footer a:hover{text-decoration:underline}
   border-color:var(--accent)
 }
 .hidden{display:none !important}
+
+/* History table */
+#historyTable{
+  width:100%;
+  border-collapse:collapse;
+  font-size:12px;
+}
+#historyTable th,
+#historyTable td{
+  padding:4px 6px;
+  border-bottom:1px solid rgba(148,163,184,.18);
+}
+#historyTable th{
+  text-align:left;
+  color:var(--muted);
+}
 </style>
 </head>
 <body>
@@ -217,6 +233,7 @@ footer a:hover{text-decoration:underline}
       <div>
         <label>Journey date</label>
         <input id="journey" class="input" type="text" placeholder="Select date" readonly>
+        <div class="small">Pick from calendar.</div>
       </div>
       <div style="display:flex;align-items:end;gap:8px;justify-content:flex-end">
         <button id="fetch" class="primary">Fetch route</button>
@@ -232,7 +249,14 @@ footer a:hover{text-decoration:underline}
     <div id="routeScroll" class="routeWrap">
       <div id="route" class="route"></div>
     </div>
-    <div class="helper">
+
+    <!-- History table (live tab only) -->
+    <div id="historyWrap" style="display:none;margin-top:8px">
+      <div class="small" style="margin-bottom:4px">Run details for selected date:</div>
+      <table id="historyTable"></table>
+    </div>
+
+    <div id="helper" class="helper">
       Tip: Click one station for Start, then another later station for End. You can still adjust using the dropdowns.
     </div>
 
@@ -342,11 +366,15 @@ const outBooking=document.getElementById('outBooking');
 const countdownEl=document.getElementById('countdown');
 const routeScroll=document.getElementById('routeScroll');
 const bookingRow=document.getElementById('bookingOnly');
+const helperEl=document.getElementById('helper');
+const historyWrap=document.getElementById('historyWrap');
+const historyTable=document.getElementById('historyTable');
 
 const tabBooking=document.getElementById('tabBooking');
 const tabLive=document.getElementById('tabLive');
 const fetchBtn=document.getElementById('fetch');
 const trackBtn=document.getElementById('trackLive');
+const trainInput=document.getElementById('trainNo');
 
 let stations=[], bookingUTC=null, firstClickIndex=null, journeyYMD=null;
 let currentStationCode=null;
@@ -366,10 +394,12 @@ function setMode(mode){
     trackBtn.style.display = 'none';
 
     if (routeScroll) routeScroll.classList.add('hidden');   // hide map
-    if (liveCard)    liveCard.classList.add('hidden');
+    if (liveCard)    liveCard.style.display = 'none';
     if (resultCard && stations.length) resultCard.style.display = ''; // show result if available
 
     if (bookingRow)  bookingRow.style.display = '';         // show selectors
+    if (helperEl)    helperEl.style.display = '';
+    if (historyWrap) historyWrap.style.display = 'none';
   } else {
     tabLive.classList.add('active');
     tabBooking.classList.remove('active');
@@ -377,14 +407,20 @@ function setMode(mode){
     fetchBtn.style.display = 'none';
     trackBtn.style.display = '';
 
-    if (routeScroll) routeScroll.classList.remove('hidden'); // show map
+    if (routeScroll && stations.length) routeScroll.classList.remove('hidden'); // show map
     if (liveCard && stations.length)    liveCard.style.display = '';
     if (resultCard)  resultCard.style.display = 'none';
 
     if (bookingRow)  bookingRow.style.display = 'none';     // hide selectors
+    if (helperEl)    helperEl.style.display = 'none';
+    if (historyWrap && stations.length) historyWrap.style.display = '';
   }
 
-  if (stations.length) rebuildMeta();
+  if (stations.length) {
+    rebuildMeta();
+    renderHistoryTable();
+    renderRouteMap();
+  }
 }
 
 tabBooking.addEventListener('click',()=>setMode('booking'));
@@ -394,6 +430,20 @@ setMode('booking');
 document.getElementById('fetch').addEventListener('click', fetchRoute);
 document.getElementById('calc').addEventListener('click', calcBooking);
 document.getElementById('trackLive').addEventListener('click', trackLive);
+
+/* Enter-to-submit and auto-fetch in live tab */
+trainInput.addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter'){
+    if(currentMode === 'live') trackLive();
+    else fetchRoute();
+  }
+});
+trainInput.addEventListener('blur', ()=>{
+  if(currentMode === 'live'){
+    const val=(trainInput.value||'').trim();
+    if(/^\d{3,5}$/.test(val)) trackLive();
+  }
+});
 
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>navigator.serviceWorker
@@ -430,13 +480,14 @@ function resetUi(){
   bookingUTC=null;
   firstClickIndex=null;
   lastPassedIndex=null;
+  if(historyTable) historyTable.innerHTML="";
 }
 
 /* Booking tab: fetch route */
 async function fetchRoute(){
   resetUi();
 
-  const tn=(document.getElementById('trainNo').value||"").trim();
+  const tn=(trainInput.value||"").trim();
   const ymd=getSelectedYMD();
 
   if(!/^\d{3,5}$/.test(tn)){
@@ -458,7 +509,7 @@ async function fetchRoute(){
 async function trackLive(){
   resetUi();
 
-  const tn=(document.getElementById('trainNo').value||"").trim();
+  const tn=(trainInput.value||"").trim();
   if(!/^\d{3,5}$/.test(tn)){
     errEl.textContent="Enter a valid train number (3–5 digits).";
     return;
@@ -549,16 +600,8 @@ async function loadStatus(train_number, departureYMD, options={}){
   toSel.value=String(stations.length-1);
 
   renderRouteMap();
+  renderHistoryTable();
   routeCard.style.display='';
-
-  if(scrollToCurrent){
-    setTimeout(()=>{
-      const marker=routeEl.querySelector('.dot.current');
-      if(marker){
-        marker.scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'});
-      }
-    },100);
-  }
 }
 
 /* Meta line: booking vs live */
@@ -581,6 +624,42 @@ function rebuildMeta(cleanMsgOverride){
   }
 
   metaEl.textContent=bits.filter(Boolean).join(" • ");
+}
+
+/* History table: arrival/departure for this run (live tab only) */
+function renderHistoryTable(){
+  if(!historyWrap || !historyTable){
+    return;
+  }
+  if(currentMode!=='live' || !stations.length){
+    historyWrap.style.display='none';
+    historyTable.innerHTML='';
+    return;
+  }
+
+  historyWrap.style.display='';
+  const rows=[];
+  rows.push(`<tr>
+    <th>Code</th>
+    <th>Station</th>
+    <th>Day</th>
+    <th>Arr</th>
+    <th>Dep</th>
+  </tr>`);
+
+  stations.forEach((s)=>{
+    const arr = s.actArr || s.schArr || '-';
+    const dep = s.actDep || s.schDep || '-';
+    const day = s.dayCount || s.dayCnt || '';
+    rows.push(`<tr>
+      <td>${s.code || ''}</td>
+      <td>${s.name || ''}</td>
+      <td>${day}</td>
+      <td>${arr}</td>
+      <td>${dep}</td>
+    </tr>`);
+  });
+  historyTable.innerHTML = rows.join('');
 }
 
 /* Route rendering with passed segments + train icon in live mode */
