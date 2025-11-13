@@ -386,6 +386,10 @@ function setMode(mode){
 
     if (bookingRow)  bookingRow.style.display = '';
     if (helperEl)    helperEl.style.display = '';
+
+    // Clear live-mode messages when returning to booking
+    if (warnEl) warnEl.textContent = "";
+    if (errEl)  errEl.textContent  = "";
   } else {
     tabLive.classList.add('active');
     tabBooking.classList.remove('active');
