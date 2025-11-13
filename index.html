@@ -654,12 +654,13 @@ function rebuildMeta(cleanMsgOverride){
 function renderRouteMap(currentCode){
   routeEl.innerHTML = "";
 
-  const liveCode = currentCode || currentStationCode || null;
-  const liveMode = (currentMode === 'live');
-  const currentIndex = liveCode
+  const liveCode   = currentCode || currentStationCode || null;
+  const liveMode   = (currentMode === 'live');
+  const currentIdx = liveCode
     ? stations.findIndex(s => s.code === liveCode)
     : -1;
-  const lp = (typeof lastPassedIndex === 'number') ? lastPassedIndex : null;
+
+  const lp        = (typeof lastPassedIndex === 'number') ? lastPassedIndex : null;
   const nextIndex = (lp != null && lp + 1 < stations.length) ? lp + 1 : null;
 
   stations.forEach((s, i) => {
@@ -694,8 +695,7 @@ function renderRouteMap(currentCode){
     if (liveMode && lp != null && i <= lp) {
       dot.classList.add('passed');
     }
-
-    if (currentIndex === i) {
+    if (currentIdx === i) {
       dot.classList.remove('passed');
       dot.classList.add('current');
     } else if (!liveMode && liveCode && s.code === liveCode) {
@@ -719,9 +719,15 @@ function renderRouteMap(currentCode){
 
     // Schedule vs actual times (live mode only)
     if (liveMode) {
-      // Prefer arrival times, fall back to departure if needed
-      const sch = s.schArr || s.stdArr || s.schDep || s.stdDep || "";
-      const act = s.actArr || s.actDep || "";
+      // Chart / timetable time (first line, white)
+      let sch = s.schArr || s.arrivalTime || s.stdArr ||
+                s.schDep || s.departureTime || s.stdDep || "";
+      // Actual time from live status (second line, green/red)
+      let act = s.actArr || s.actual_arrival_time ||
+                s.actDep || s.actual_departure_time || "";
+
+      if (sch === "--") sch = "";
+      if (act === "--") act = "";
 
       if (sch || act) {
         const ti = document.createElement('div');
@@ -729,8 +735,8 @@ function renderRouteMap(currentCode){
 
         if (sch) {
           const schEl = document.createElement('div');
-          schEl.className = 'timeSch';
-          schEl.textContent = `Chart: ${sch}`; // chart time in white
+          schEl.className = 'timeSch';          // styled as white in CSS
+          schEl.textContent = `Chart: ${sch}`;
           ti.appendChild(schEl);
         }
 
@@ -738,13 +744,11 @@ function renderRouteMap(currentCode){
           const actEl = document.createElement('div');
           actEl.className = 'timeAct';
 
-          // Green if on/before chart, red if later
           if (sch && isOnTimeOrEarly(act, sch)) {
-            actEl.classList.add('onTime');
+            actEl.classList.add('onTime');       // green
           } else if (sch) {
-            actEl.classList.add('late');
+            actEl.classList.add('late');         // red
           }
-
           actEl.textContent = `Actual: ${act}`;
           ti.appendChild(actEl);
         }
