@@ -706,23 +706,25 @@ function renderRouteMap(currentCode){
 
   const liveCode   = currentCode || currentStationCode || null;
   const liveMode   = (currentMode === 'live');
-  const currentIdx = liveCode
-    ? stations.findIndex(s => s.code === liveCode)
+  const currentIndex = liveCode
+    ? stations.findIndex(s => (s.code === liveCode))
     : -1;
 
-  const lp        = (typeof lastPassedIndex === 'number') ? lastPassedIndex : null;
+  const lp = (typeof lastPassedIndex === 'number') ? lastPassedIndex : null;
   const nextIndex = (lp != null && lp + 1 < stations.length) ? lp + 1 : null;
 
   stations.forEach((s, i) => {
-    // Connector between stations
+    // connector between i-1 and i
     if (i > 0) {
       const conn = document.createElement('div');
       conn.className = "connector";
 
       if (liveMode) {
+        // past segment
         if (lp != null && i - 1 <= lp) {
           conn.classList.add('connector-past');
         }
+        // current active segment with train icon
         if (nextIndex != null && i - 1 === lp) {
           conn.classList.add('connector-active');
           const train = document.createElement('div');
@@ -731,10 +733,10 @@ function renderRouteMap(currentCode){
           conn.appendChild(train);
         }
       }
+
       routeEl.appendChild(conn);
     }
 
-    // Station node
     const node = document.createElement('div');
     node.className = "station";
     node.dataset.index = i;
@@ -742,10 +744,11 @@ function renderRouteMap(currentCode){
     const dot = document.createElement('div');
     dot.className = "dot";
 
+    // passed/current colouring
     if (liveMode && lp != null && i <= lp) {
       dot.classList.add('passed');
     }
-    if (currentIdx === i) {
+    if (currentIndex === i) {
       dot.classList.remove('passed');
       dot.classList.add('current');
     } else if (!liveMode && liveCode && s.code === liveCode) {
@@ -767,45 +770,56 @@ function renderRouteMap(currentCode){
     node.appendChild(code);
     node.appendChild(name);
 
-    // Schedule vs actual times (live mode only)
+    // ====== timetable vs actual times (LIVE mode only) ======
     if (liveMode) {
-      // Chart / timetable time (first line, white)
-      let sch = s.schArr || s.arrivalTime || s.stdArr ||
-                s.schDep || s.departureTime || s.stdDep || "";
-      // Actual time from live status (second line, green/red)
-      let act = s.actArr || s.actual_arrival_time ||
-                s.actDep || s.actual_departure_time || "";
+      // Timetable (chart) time – look at multiple possible keys
+      const chartTime =
+        s.schArr ||
+        s.stdArr ||
+        s.arrivalTime ||
+        s.departureTime ||
+        s.schedule_arrival_time ||
+        s.schedule_departure_time ||
+        "";
 
-      if (sch === "--") sch = "";
-      if (act === "--") act = "";
+      // Actual time – again, multiple possible keys
+      const actualTime =
+        s.actArr ||
+        s.actDep ||
+        s.actual_arrival_time ||
+        s.actual_departure_time ||
+        "";
 
-      if (sch || act) {
+      if (chartTime || actualTime) {
         const ti = document.createElement('div');
         ti.className = 'timeInfo';
 
-        if (sch) {
-          const schEl = document.createElement('div');
-          schEl.className = 'timeSch';          // styled as white in CSS
-          schEl.textContent = `Chart: ${sch}`;
-          ti.appendChild(schEl);
+        if (chartTime) {
+          const chartEl = document.createElement('div');
+          chartEl.className = 'timeSch';        // styled white in CSS
+          chartEl.textContent = `Chart: ${chartTime}`;
+          ti.appendChild(chartEl);
         }
 
-        if (act) {
+        if (actualTime) {
           const actEl = document.createElement('div');
           actEl.className = 'timeAct';
 
-          if (sch && isOnTimeOrEarly(act, sch)) {
-            actEl.classList.add('onTime');       // green
-          } else if (sch) {
-            actEl.classList.add('late');         // red
+          // green if on time/early, red if late (when we have a chart time)
+          if (chartTime && isOnTimeOrEarly(actualTime, chartTime)) {
+            actEl.classList.add('onTime');
+          } else if (chartTime) {
+            actEl.classList.add('late');
           }
-          actEl.textContent = `Actual: ${act}`;
+
+          actEl.textContent = `Actual: ${actualTime}`;
           ti.appendChild(actEl);
         }
 
         node.appendChild(ti);
       }
     }
+    // ====== end times block ======
 
     routeEl.appendChild(node);
   });
@@ -819,11 +833,19 @@ function parseHM(str){
   if(!m) return null;
   return (+m[1])*60 + (+m[2]);
 }
-function isOnTimeOrEarly(act, sch){
-  const a=parseHM(act);
-  const s=parseHM(sch);
-  if(a==null || s==null) return false;
-  return a <= s;
+function isOnTimeOrEarly(actualStr, chartStr){
+  // expects "HH:MM" or "--"
+  const toMinutes = (t) => {
+    if (!t || t === "--") return null;
+    const m = t.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return null;
+    return parseInt(m[1],10)*60 + parseInt(m[2],10);
+  };
+
+  const a = toMinutes(actualStr);
+  const c = toMinutes(chartStr);
+  if (a == null || c == null) return false;
+  return a <= c; // early or on time
 }
 
 /* Booking selection via route clicks */
