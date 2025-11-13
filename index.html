@@ -212,10 +212,17 @@ async function trackLive() {
     return;
   }
 
-  const todayYMD = getTodayYMDIST();
-  // For live tracking we don’t use journeyYMD in booking calculation,
-  // so we don't touch it here.
-  await loadStatus(tn, todayYMD, { scrollToCurrent: true });
+  // Prefer the date selected in the calendar (same run as "Fetch route")
+  let ymd = getSelectedYMD();      // this is the same helper used in fetchRoute()
+
+  if (!/^\d{8}$/.test(ymd || "")) {
+    // No date selected – fall back to "today" and tell the user
+    ymd = getTodayYMDIST();
+    warnEl.textContent = "No journey date selected. Tracking today’s run for this train.";
+  }
+
+  // For live tracking we just load status and scroll to the current station
+  await loadStatus(tn, ymd, { scrollToCurrent: true });
 }
 
 let currentStationCode = null; // global, used by renderRouteMap
