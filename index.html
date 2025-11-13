@@ -546,85 +546,135 @@ function computeLastPassedIndex(brief){
 }
 
 /* Core loader with optional fallback to yesterday when today's run hasn't started */
-async function loadStatus(train_number, departureYMD, options={}){
+async function loadStatus(train_number, departureYMD, options = {}) {
   const {
-    scrollToCurrent=false,
-    liveAutoDate=false,
-    triedFallback=false
+    scrollToCurrent = false,
+    liveAutoDate = false,
+    triedFallback = false
   } = options;
 
-  const url=new URL('/.netlify/functions/trainStatus',location.origin);
-  url.searchParams.set('train_number',train_number);
-  url.searchParams.set('departure_date',departureYMD);
+  const url = new URL('/.netlify/functions/trainStatus', location.origin);
+  url.searchParams.set('train_number', train_number);
+  url.searchParams.set('departure_date', departureYMD);
 
   let payload;
-  try{
-    const res=await fetch(url.toString());
-    const text=await res.text();
-    if(!res.ok){
-      errEl.textContent="API error. Try a different date or train.";
+  try {
+    const res = await fetch(url.toString());
+    const text = await res.text();
+    if (!res.ok) {
+      errEl.textContent = "API error. Try a different date or train.";
       return;
     }
-    payload=JSON.parse(text);
-  }catch(e){
-    errEl.textContent="Could not reach server.";
+    payload = JSON.parse(text);
+  } catch (e) {
+    errEl.textContent = "Could not reach server.";
     return;
   }
 
-  const brief=payload.brief||{};
-  lastBrief=brief;
+  const brief = payload.brief || {};
+  lastBrief = brief;
 
-  stations=brief.stations||[];
-  if(!stations.length){
-    errEl.textContent="No station data for that run.";
+  // ✳️ NORMALIZE STATIONS HERE – schedule + actual times in one shape
+  const rawStations = brief.stations || [];
+  stations = rawStations.map((st, idx) => ({
+    index: idx,
+
+    // Codes / names
+    code: st.code || st.stationCode || st.stnCode || "",
+    name: st.name || st.stationName || st.stnName || "",
+
+    // Day number
+    dayCount: parseInt(st.dayCount || st.day || st.day_no || "1", 10) || 1,
+
+    // Scheduled times (timetable)
+    schArr: st.schArr ||
+            st.arrivalTime ||
+            st.schedule_arrival_time ||
+            st.sch_arrival ||
+            "",
+    schDep: st.schDep ||
+            st.departureTime ||
+            st.schedule_departure_time ||
+            st.sch_departure ||
+            "",
+
+    // Actual times from live status
+    actArr: st.actArr ||
+            st.actual_arrival_time ||
+            st.actualArr ||
+            "",
+    actDep: st.actDep ||
+            st.actual_departure_time ||
+            st.actualDep ||
+            "",
+
+    // Dates (used by booking logic / other bits)
+    actArrDate: st.actArrDate || st.actual_arrival_date || "",
+    actDepDate: st.actDepDate || st.actual_departure_date || ""
+  }));
+
+  if (!stations.length) {
+    errEl.textContent = "No station data for that run.";
     return;
   }
 
+  // --- existing "hasn't started" detection + fallback to yesterday ---
   const msgRaw = brief.train_status_message || "";
-  const msgPlain = msgRaw.replace(/<[^>]+>/g,"").toLowerCase();
-  const looksNotStarted = /hasn[’']?t started|has not started|not started from the originating/.test(msgPlain);
+  const msgPlain = msgRaw.replace(/<[^>]+>/g, "").toLowerCase();
+  const looksNotStarted =
+    /hasn[’']?t started|has not started|not started from the originating/.test(msgPlain);
 
-  // Fallback: if live auto-date and today's run hasn't started, try yesterday
-  if(currentMode==='live' && liveAutoDate && looksNotStarted && !triedFallback){
-    const prev = shiftYMD(departureYMD,-1);
-    warnEl.textContent = "Today's run hasn't started yet. Showing yesterday's run if it is still in progress.";
+  if (currentMode === 'live' && liveAutoDate && looksNotStarted && !triedFallback) {
+    const prev = shiftYMD(departureYMD, -1);
+    warnEl.textContent =
+      "Today's run hasn't started yet. Showing yesterday's run if it is still in progress.";
     return await loadStatus(train_number, prev, {
       scrollToCurrent,
-      liveAutoDate:false,
-      triedFallback:true
+      liveAutoDate: false,
+      triedFallback: true
     });
   }
 
-  currentStationCode=brief.current_station||null;
-  lastPassedIndex=computeLastPassedIndex(brief);
+  currentStationCode = brief.current_station || null;
+  lastPassedIndex = computeLastPassedIndex(brief);
 
-  const cleanMsg=msgRaw.replace(/<[^>]+>/g,"").trim();
+  const cleanMsg = msgRaw.replace(/<[^>]+>/g, "").trim();
   rebuildMeta(cleanMsg);
 
-  if(currentStationCode||cleanMsg){
-    liveCard.style.display='';
-    liveMsg.textContent=cleanMsg || `Current station: ${currentStationCode}`;
+  if (currentStationCode || cleanMsg) {
+    liveCard.style.display = '';
+    liveMsg.textContent = cleanMsg || `Current station: ${currentStationCode}`;
   }
 
-  fromSel.innerHTML=stations.map((s,i)=>`<option value="${i}">${s.code} — ${s.name}</option>`).join('');
-  toSel.innerHTML  =stations.map((s,i)=>`<option value="${i}">${s.code} — ${s.name}</option>`).join('');
-  fromSel.value="0";
-  toSel.value=String(stations.length-1);
+  // Populate dropdowns (booking view still uses these)
+  fromSel.innerHTML = stations
+    .map((s, i) => `<option value="${i}">${s.code} — ${s.name}</option>`)
+    .join('');
+  toSel.innerHTML = stations
+    .map((s, i) => `<option value="${i}">${s.code} — ${s.name}</option>`)
+    .join('');
+  fromSel.value = "0";
+  toSel.value = String(stations.length - 1);
 
+  // Draw route with schedule + actual times
   renderRouteMap();
-  routeCard.style.display='';
+  routeCard.style.display = '';
 
-  if(scrollToCurrent){
-    setTimeout(()=>{
+  if (scrollToCurrent) {
+    setTimeout(() => {
       let marker = routeEl.querySelector('.dot.current');
-      if(!marker && lastPassedIndex!=null){
+      if (!marker && lastPassedIndex != null) {
         const dots = routeEl.querySelectorAll('.dot');
-        if(dots[lastPassedIndex]) marker = dots[lastPassedIndex];
+        if (dots[lastPassedIndex]) marker = dots[lastPassedIndex];
       }
-      if(marker){
-        marker.scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'});
+      if (marker) {
+        marker.scrollIntoView({
+          behavior: 'smooth',
+          inline: 'center',
+          block: 'nearest'
+        });
       }
-    },120);
+    }, 120);
   }
 }
 
