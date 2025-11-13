@@ -12,46 +12,188 @@
 <script src="https://cdn.jsdelivr.net/npm/flatpickr" onload="initCalendar()" onerror="calendarCDNFailed()"></script>
 
 <style>
-:root{ --bg:#0b0f1a; --fg:#e8edf5; --muted:#9fb0c7; --card:#0e1422; --border:#1a2538; --accent:#4da3ff; --ok:#34d399; --warn:#f59e0b; --err:#f87171; }
+:root{
+  --bg:#0b0f1a;
+  --fg:#e8edf5;
+  --muted:#9fb0c7;
+  --card:#0e1422;
+  --border:#1a2538;
+  --accent:#4da3ff;
+  --ok:#34d399;
+  --warn:#f59e0b;
+  --err:#f87171;
+}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;display:flex;justify-content:center;padding:18px}
-main{width:100%;max-width:980px;display:flex;flex-direction:column;gap:14px}
-.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--fg);
+  font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  display:flex;
+  justify-content:center;
+  padding:18px
+}
+main{
+  width:100%;
+  max-width:980px;
+  display:flex;
+  flex-direction:column;
+  gap:14px
+}
+.card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:16px
+}
 h1{margin:0 0 6px;font-size:22px}
 label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
 input,select,button{font:inherit}
-.input{width:100%;border:1px solid var(--border);border-radius:12px;padding:12px;background:transparent;color:var(--fg)}
-.row{display:grid;grid-template-columns:1fr 1fr auto;gap:12px}
-@media(max-width:820px){.row{grid-template-columns:1fr}}
-button{border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:#163056;color:var(--fg);cursor:pointer}
-button.primary{background:var(--accent);border-color:var(--accent);color:#051225}
+.input{
+  width:100%;
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:12px;
+  background:transparent;
+  color:var(--fg)
+}
+.row{
+  display:grid;
+  grid-template-columns:1.2fr 1.2fr auto;
+  gap:12px
+}
+.row.topRow{
+  align-items:end;
+}
+@media(max-width:820px){
+  .row{grid-template-columns:1fr}
+}
+button{
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:10px 12px;
+  background:#163056;
+  color:var(--fg);
+  cursor:pointer
+}
+button.primary{
+  background:var(--accent);
+  border-color:var(--accent);
+  color:#051225
+}
 .small{font-size:12px;color:var(--muted)}
 .err{color:var(--err)}
 .pop-in{animation:pop .35s ease-out}
-@keyframes pop{from{transform:scale(.97);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes pop{
+  from{transform:scale(.97);opacity:0}
+  to{transform:scale(1);opacity:1}
+}
 .pulse{animation:pulse 2.5s ease-in-out infinite}
-@keyframes pulse{0%{opacity:.85}50%{opacity:1}100%{opacity:.85}}
+@keyframes pulse{
+  0%{opacity:.85}
+  50%{opacity:1}
+  100%{opacity:.85}
+}
 .routeWrap{overflow-x:auto;padding-bottom:8px}
 .route{display:flex;align-items:center;gap:16px;padding:10px 6px}
-.station{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:84px}
-.dot{width:12px;height:12px;border-radius:50%;background:#4b5563;border:2px solid #94a3b8}
-.dot.current{box-shadow:0 0 0 4px rgba(77,163,255,.25);background:var(--accent);border-color:var(--accent)}
+.station{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:6px;
+  min-width:84px
+}
+.dot{
+  width:12px;
+  height:12px;
+  border-radius:50%;
+  background:#4b5563;
+  border:2px solid #94a3b8
+}
+.dot.current{
+  box-shadow:0 0 0 4px rgba(77,163,255,.25);
+  background:var(--accent);
+  border-color:var(--accent)
+}
 .dot.selected{background:var(--ok);border-color:var(--ok)}
 .dot.range{background:#2563eb;border-color:#2563eb}
+
+/* crossed stations in live mode */
+.dot.passed{
+  background:var(--ok);
+  border-color:var(--ok);
+}
+
 .stCode{font:12px ui-monospace,Menlo,Consolas,monospace}
 .stName{font-size:12px;color:var(--muted);text-align:center;max-width:120px}
-.connector{height:2px;background:#334155;flex:1;min-width:20px}
+.connector{
+  height:2px;
+  background:#334155;
+  flex:1;
+  min-width:20px;
+  position:relative;
+  border-radius:999px;
+}
+
+/* past and active route segments */
+.connector-past{
+  background:rgba(52,211,153,0.55);
+}
+.connector-active{
+  background:var(--accent);
+}
+
+/* small train on the active connector */
+.train-icon{
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  font-size:14px;
+  pointer-events:none;
+}
+
 .helper{color:var(--muted);font-size:12px;margin-top:6px}
-.badge{display:inline-block;border:1px solid var(--border);border-radius:999px;padding:2px 8px;font-size:11px}
+.badge{
+  display:inline-block;
+  border:1px solid var(--border);
+  border-radius:999px;
+  padding:2px 8px;
+  font-size:11px
+}
 footer{display:flex;justify-content:center;margin-top:6px}
 footer a{color:var(--muted);text-decoration:none}
 footer a:hover{text-decoration:underline}
 .live{display:flex;gap:8px;align-items:center}
-.dotlive{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 4px rgba(52,211,153,.15)}
+.dotlive{
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:var(--ok);
+  box-shadow:0 0 0 4px rgba(52,211,153,.15)
+}
+
 /* Tabs */
-#tabs{margin-top:10px;display:flex;gap:8px}
-.tab{border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--muted);padding:6px 14px;font-size:13px;cursor:pointer}
-.tab.active{background:var(--accent);color:#051225;border-color:var(--accent)}
+#tabs{
+  margin-top:10px;
+  display:flex;
+  gap:8px
+}
+.tab{
+  border-radius:999px;
+  border:1px solid var(--border);
+  background:transparent;
+  color:var(--muted);
+  padding:6px 14px;
+  font-size:13px;
+  cursor:pointer
+}
+.tab.active{
+  background:var(--accent);
+  color:#051225;
+  border-color:var(--accent)
+}
 .hidden{display:none !important}
 </style>
 </head>
@@ -67,7 +209,7 @@ footer a:hover{text-decoration:underline}
   </header>
 
   <section class="card">
-    <div class="row">
+    <div class="row topRow">
       <div>
         <label>Train number</label>
         <input id="trainNo" class="input" placeholder="e.g., 16527" inputmode="numeric" autocomplete="off">
@@ -77,7 +219,7 @@ footer a:hover{text-decoration:underline}
         <input id="journey" class="input" type="text" placeholder="Select date" readonly>
         <div class="small">Pick from calendar.</div>
       </div>
-      <div style="display:flex;align-items:end;gap:8px">
+      <div style="display:flex;align-items:end;gap:8px;justify-content:flex-end">
         <button id="fetch" class="primary">Fetch route</button>
         <button id="trackLive">Track live</button>
       </div>
@@ -88,16 +230,29 @@ footer a:hover{text-decoration:underline}
 
   <section id="routeCard" class="card" style="display:none">
     <div id="meta" class="small"></div>
-    <div id="routeScroll" class="routeWrap"><div id="route" class="route"></div></div>
-    <div class="helper">Tip: Click one station for Start, then another later station for End. You can still adjust using the dropdowns.</div>
+    <div id="routeScroll" class="routeWrap">
+      <div id="route" class="route"></div>
+    </div>
+    <div class="helper">
+      Tip: Click one station for Start, then another later station for End. You can still adjust using the dropdowns.
+    </div>
+
+    <!-- Booking-only controls -->
     <div id="bookingOnly">
-  <div class="row" style="grid-template-columns:1fr 1fr auto;margin-top:10px">
-    <div><label>Start (boarding)</label><select id="fromSel" class="input"></select></div>
-    <div><label>End (destination)</label><select id="toSel" class="input"></select></div>
-    <div style="display:flex;align-items:end"><button id="calc" class="primary">Calculate booking</button></div>
-  </div>
-</div>
-  
+      <div class="row" style="grid-template-columns:1fr 1fr auto;margin-top:10px">
+        <div>
+          <label>Start (boarding)</label>
+          <select id="fromSel" class="input"></select>
+        </div>
+        <div>
+          <label>End (destination)</label>
+          <select id="toSel" class="input"></select>
+        </div>
+        <div style="display:flex;align-items:end">
+          <button id="calc" class="primary">Calculate booking</button>
+        </div>
+      </div>
+    </div>
   </section>
 
   <section id="resultCard" class="card pop-in" style="display:none">
@@ -115,7 +270,9 @@ footer a:hover{text-decoration:underline}
   </section>
 
   <footer class="small">
-    <a href="https://www.linkedin.com/in/kaarthik-ashok" target="_blank" rel="noopener">Made with ❤️ by Kaarthik</a>
+    <a href="https://www.linkedin.com/in/kaarthik-ashok" target="_blank" rel="noopener">
+      Made with ❤️ by Kaarthik
+    </a>
   </footer>
 </main>
 
@@ -125,25 +282,53 @@ let _flatpickrReady=false;
 function initCalendar(){
   if(!window.flatpickr) return calendarCDNFailed();
   _flatpickrReady=true;
-  flatpickr("#journey",{altInput:true,altFormat:"F j, Y",dateFormat:"Ymd",allowInput:false,clickOpens:true});
+  flatpickr("#journey",{
+    altInput:true,
+    altFormat:"F j, Y",
+    dateFormat:"Ymd",
+    allowInput:false,
+    clickOpens:true
+  });
 }
 function calendarCDNFailed(){
   const alt=document.createElement("script");
   alt.src="https://unpkg.com/flatpickr@latest/dist/flatpickr.min.js";
   alt.onload=initCalendar;
   alt.onerror=()=>{
-    const j=document.getElementById('journey'); j.readOnly=false; j.type='date';
+    const j=document.getElementById('journey');
+    j.readOnly=false;
+    j.type='date';
   };
   document.head.appendChild(alt);
 }
-document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{if(!_flatpickrReady&&window.flatpickr) initCalendar();},500);});
+document.addEventListener('DOMContentLoaded',()=>{
+  setTimeout(()=>{
+    if(!_flatpickrReady&&window.flatpickr) initCalendar();
+  },500);
+});
 
 /* App logic */
 const DAY_MS=86400000;
-const fmtDate=(y,m,d)=>new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(Date.UTC(y,m-1,d)));
-const fmtFull=(ms)=>new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',weekday:'short',month:'short',day:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(ms)).replace(/\u200E/g,'');
+const fmtDate=(y,m,d)=>new Intl.DateTimeFormat(
+  'en-IN',
+  {timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}
+).format(new Date(Date.UTC(y,m-1,d)));
+const fmtFull=(ms)=>new Intl.DateTimeFormat(
+  'en-IN',
+  {
+    timeZone:'Asia/Kolkata',
+    weekday:'short',
+    month:'short',
+    day:'2-digit',
+    year:'numeric',
+    hour:'2-digit',
+    minute:'2-digit',
+    second:'2-digit',
+    hour12:false
+  }
+).format(new Date(ms)).replace(/\u200E/g,'');
 
-const warnEl = document.getElementById('warn');
+const warnEl=document.getElementById('warn');
 const errEl=document.getElementById('err');
 const routeCard=document.getElementById('routeCard');
 const resultCard=document.getElementById('resultCard');
@@ -158,15 +343,17 @@ const outBooking=document.getElementById('outBooking');
 const countdownEl=document.getElementById('countdown');
 const routeScroll=document.getElementById('routeScroll');
 const bookingRow=document.getElementById('bookingOnly');
+
 const tabBooking=document.getElementById('tabBooking');
 const tabLive=document.getElementById('tabLive');
-
 const fetchBtn=document.getElementById('fetch');
 const trackBtn=document.getElementById('trackLive');
 
 let stations=[], bookingUTC=null, firstClickIndex=null, journeyYMD=null;
-let currentStationCode = null;
+let currentStationCode=null;
 let currentMode='booking';   // 'booking' or 'live'
+let lastPassedIndex=null;
+let lastBrief=null;
 
 /* Mode switching: booking vs live */
 function setMode(mode){
@@ -179,11 +366,11 @@ function setMode(mode){
     fetchBtn.style.display = '';
     trackBtn.style.display = 'none';
 
-    if (routeScroll) routeScroll.classList.add('hidden');  // no route map on booking tab
+    if (routeScroll) routeScroll.classList.add('hidden');   // hide map
     if (liveCard)    liveCard.classList.add('hidden');
-    if (resultCard)  resultCard.classList.remove('hidden');
+    if (resultCard && stations.length) resultCard.style.display = ''; // show result if available
 
-    if (bookingRow)  bookingRow.style.display = '';        // SHOW station selectors + Calculate
+    if (bookingRow)  bookingRow.style.display = '';         // show selectors
   } else {
     tabLive.classList.add('active');
     tabBooking.classList.remove('active');
@@ -191,17 +378,14 @@ function setMode(mode){
     fetchBtn.style.display = 'none';
     trackBtn.style.display = '';
 
-    if (routeScroll) routeScroll.classList.remove('hidden'); // show route map on live tab
-    if (liveCard)    liveCard.classList.remove('hidden');
-    if (resultCard)  resultCard.classList.add('hidden');
+    if (routeScroll) routeScroll.classList.remove('hidden'); // show map
+    if (liveCard && stations.length)    liveCard.style.display = '';
+    if (resultCard)  resultCard.style.display = 'none';
 
-    if (bookingRow)  bookingRow.style.display = 'none';    // HIDE station selectors + Calculate
+    if (bookingRow)  bookingRow.style.display = 'none';     // hide selectors
   }
 
-  // Rebuild meta line using current mode (if we already have data)
-  if (stations.length) {
-    rebuildMeta();
-  }
+  if (stations.length) rebuildMeta();
 }
 
 tabBooking.addEventListener('click',()=>setMode('booking'));
@@ -212,198 +396,254 @@ document.getElementById('fetch').addEventListener('click', fetchRoute);
 document.getElementById('calc').addEventListener('click', calcBooking);
 document.getElementById('trackLive').addEventListener('click', trackLive);
 
-if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/service-worker.js').catch(()=>{}));}
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>navigator.serviceWorker
+    .register('/service-worker.js')
+    .catch(()=>{}));
+}
 
 function getSelectedYMD(){
-  const el=document.getElementById('journey'); const v=(el.value||'').trim();
+  const el=document.getElementById('journey');
+  const v=(el.value||'').trim();
   if(/^\d{8}$/.test(v)) return v;
   if(/^\d{4}-\d{2}-\d{2}$/.test(v)) return v.replace(/-/g,'');
   return null;
 }
-function getTodayYMDIST() {
-  const now = new Date();
-  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
-  const ist = new Date(utc + 330 * 60000);
-  const y = ist.getFullYear();
-  const m = String(ist.getMonth() + 1).padStart(2, '0');
-  const d = String(ist.getDate()).padStart(2, '0');
+function getTodayYMDIST(){
+  const now=new Date();
+  const utc=now.getTime()+now.getTimezoneOffset()*60000;
+  const ist=new Date(utc+330*60000);
+  const y=ist.getFullYear();
+  const m=String(ist.getMonth()+1).padStart(2,'0');
+  const d=String(ist.getDate()).padStart(2,'0');
   return `${y}${m}${d}`;
 }
 
-function resetUi() {
-  errEl.textContent = "";
-  warnEl.textContent = "";
+function resetUi(){
+  errEl.textContent="";
+  warnEl.textContent="";
 
-  // Hide everything for a clean state; setMode() will re-show what it needs
-  routeCard.style.display  = "none";
-  resultCard.style.display = "none";
-  liveCard.style.display   = "none";
+  routeCard.style.display="none";
+  resultCard.style.display="none";
+  liveCard.style.display="none";
 
-  stations = [];
-  bookingUTC = null;
-  firstClickIndex = null;
+  stations=[];
+  bookingUTC=null;
+  firstClickIndex=null;
+  lastPassedIndex=null;
 }
 
-/* Booking tab: fetch route + populate dropdowns */
-async function fetchRoute() {
+/* Booking tab: fetch route */
+async function fetchRoute(){
   resetUi();
 
-  const tn  = (document.getElementById('trainNo').value || "").trim();
-  const ymd = getSelectedYMD();
+  const tn=(document.getElementById('trainNo').value||"").trim();
+  const ymd=getSelectedYMD();
 
-  if (!/^\d{3,5}$/.test(tn)) {
-    errEl.textContent = "Enter a valid train number (3–5 digits).";
+  if(!/^\d{3,5}$/.test(tn)){
+    errEl.textContent="Enter a valid train number (3–5 digits).";
     return;
   }
-  if (!/^\d{8}$/.test(ymd || "")) {
-    errEl.textContent = "Pick the journey date.";
+  if(!/^\d{8}$/.test(ymd||"")){
+    errEl.textContent="Pick the journey date.";
     return;
   }
 
-  journeyYMD = ymd;                     // used later in calcBooking
-  await loadStatus(tn, ymd, { scrollToCurrent: false });
+  journeyYMD=ymd;
+  await loadStatus(tn, ymd, {scrollToCurrent:false});
 
-  // Show booking UI: station selectors + result card, no route map / live card
-  setMode("booking");
+  setMode('booking');
 }
 
-/* Live tracking tab: focus on current position + route map */
-async function trackLive() {
+/* Live tracking tab */
+async function trackLive(){
   resetUi();
 
-  const tn = (document.getElementById('trainNo').value || "").trim();
-  if (!/^\d{3,5}$/.test(tn)) {
-    errEl.textContent = "Enter a valid train number (3–5 digits).";
+  const tn=(document.getElementById('trainNo').value||"").trim();
+  if(!/^\d{3,5}$/.test(tn)){
+    errEl.textContent="Enter a valid train number (3–5 digits).";
     return;
   }
 
-  let ymd = getSelectedYMD();
-  if (!/^\d{8}$/.test(ymd || "")) {
-    ymd = getTodayYMDIST();
-    warnEl.textContent = "No journey date selected. Tracking today’s run for this train.";
+  let ymd=getSelectedYMD();
+  if(!/^\d{8}$/.test(ymd||"")){
+    ymd=getTodayYMDIST();
+    warnEl.textContent="No journey date selected. Tracking today’s run for this train.";
   }
 
-  await loadStatus(tn, ymd, { scrollToCurrent: true });
+  await loadStatus(tn, ymd, {scrollToCurrent:true});
 
-  // Show live tracking UI: route map + live card, hide booking row / result card
-  setMode("live");
+  setMode('live');
 }
 
-let lastBrief = null;
+/* Parse last passed station from message */
+function computeLastPassedIndex(brief){
+  const raw = brief.train_status_message || "";
+  let m = raw.match(/<b>([^<]+)<\/b>/i);
+  if(m){
+    const nameUpper = m[1].trim().toUpperCase();
+    const byName = stations.findIndex(s =>
+      (s.name||"").toUpperCase().includes(nameUpper)
+    );
+    if(byName>=0) return byName;
+  }
+  const plain = raw.replace(/<[^>]+>/g,"");
+  const mCode = plain.match(/crossed\s+([A-Z]{2,5})/i);
+  if(mCode){
+    const codeUpper=mCode[1].toUpperCase();
+    const byCode=stations.findIndex(s =>
+      (s.code||"").toUpperCase()===codeUpper
+    );
+    if(byCode>=0) return byCode;
+  }
+  if(brief.current_station){
+    const idx=stations.findIndex(s=>s.code===brief.current_station);
+    if(idx>=0) return idx;
+  }
+  return null;
+}
 
-async function loadStatus(train_number, departureYMD, options = {}) {
-  const { scrollToCurrent = false } = options;
+async function loadStatus(train_number, departureYMD, options={}){
+  const {scrollToCurrent=false}=options;
 
-  const url = new URL('/.netlify/functions/trainStatus', location.origin);
-  url.searchParams.set('train_number', train_number);
-  url.searchParams.set('departure_date', departureYMD);
+  const url=new URL('/.netlify/functions/trainStatus',location.origin);
+  url.searchParams.set('train_number',train_number);
+  url.searchParams.set('departure_date',departureYMD);
 
   let payload;
-  try {
-    const res = await fetch(url.toString());
-    const text = await res.text();
-    if (!res.ok) {
-      errEl.textContent = "API error. Try a different date or train.";
+  try{
+    const res=await fetch(url.toString());
+    const text=await res.text();
+    if(!res.ok){
+      errEl.textContent="API error. Try a different date or train.";
       return;
     }
-    payload = JSON.parse(text);
-  } catch (e) {
-    errEl.textContent = "Could not reach server.";
+    payload=JSON.parse(text);
+  }catch(e){
+    errEl.textContent="Could not reach server.";
     return;
   }
 
-  const brief = payload.brief || {};
-  lastBrief = brief;
+  const brief=payload.brief||{};
+  lastBrief=brief;
 
-  stations = brief.stations || [];
-  if (!stations.length) {
-    errEl.textContent = "No station data for that run.";
+  stations=brief.stations||[];
+  if(!stations.length){
+    errEl.textContent="No station data for that run.";
     return;
   }
 
-  currentStationCode = brief.current_station || null;
+  currentStationCode=brief.current_station||null;
+  lastPassedIndex=computeLastPassedIndex(brief);
 
-  const cleanMsg = (brief.train_status_message || "").replace(/<[^>]+>/g, "").trim();
+  const cleanMsg=(brief.train_status_message||"").replace(/<[^>]+>/g,"").trim();
   rebuildMeta(cleanMsg);
 
-  if (currentStationCode || cleanMsg) {
-    liveCard.style.display = '';
-    liveMsg.textContent = cleanMsg || `Current station: ${currentStationCode}`;
+  if(currentStationCode||cleanMsg){
+    liveCard.style.display='';
+    liveMsg.textContent=cleanMsg || `Current station: ${currentStationCode}`;
   }
 
-  fromSel.innerHTML = stations.map((s, i) => `<option value="${i}">${s.code} — ${s.name}</option>`).join('');
-  toSel.innerHTML   = stations.map((s, i) => `<option value="${i}">${s.code} — ${s.name}</option>`).join('');
-  fromSel.value = "0";
-  toSel.value   = String(stations.length - 1);
+  fromSel.innerHTML=stations.map((s,i)=>`<option value="${i}">${s.code} — ${s.name}</option>`).join('');
+  toSel.innerHTML  =stations.map((s,i)=>`<option value="${i}">${s.code} — ${s.name}</option>`).join('');
+  fromSel.value="0";
+  toSel.value=String(stations.length-1);
 
   renderRouteMap();
-  routeCard.style.display = '';
+  routeCard.style.display='';
 
-  if (scrollToCurrent) {
-    setTimeout(() => {
-      const marker = routeEl.querySelector('.dot.current');
-      if (marker) {
-        marker.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  if(scrollToCurrent){
+    setTimeout(()=>{
+      const marker=routeEl.querySelector('.dot.current');
+      if(marker){
+        marker.scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'});
       }
-    }, 100);
+    },100);
   }
 }
 
-// Build meta line differently for booking vs live
+/* Meta line: booking vs live */
 function rebuildMeta(cleanMsgOverride){
-  if (!lastBrief) return;
-  const brief = lastBrief;
-  const cleanMsg = (cleanMsgOverride !== undefined)
+  if(!lastBrief) return;
+  const brief=lastBrief;
+  const cleanMsg=(cleanMsgOverride!==undefined)
     ? cleanMsgOverride
-    : (brief.train_status_message || "").replace(/<[^>]+>/g, "").trim();
+    : (brief.train_status_message||"").replace(/<[^>]+>/g,"").trim();
 
-  const bits = [];
-  if (brief.trainNumber || brief.trainName || brief.train_name) {
-    const name = brief.trainName || brief.train_name || "";
+  const bits=[];
+  if(brief.trainNumber || brief.trainName || brief.train_name){
+    const name=brief.trainName || brief.train_name || "";
     bits.push(name ? `Train: ${brief.trainNumber} — ${name}` : `Train: ${brief.trainNumber}`);
   }
 
-  if (currentMode === 'live') {
-    if (currentStationCode) bits.push(`Current: ${currentStationCode}`);
-    if (cleanMsg) bits.push(cleanMsg);
+  if(currentMode==='live'){
+    if(currentStationCode) bits.push(`Current: ${currentStationCode}`);
+    if(cleanMsg) bits.push(cleanMsg);
   }
 
-  metaEl.textContent = bits.filter(Boolean).join(" • ");
+  metaEl.textContent=bits.filter(Boolean).join(" • ");
 }
 
-function renderRouteMap(currentCode) {
-  routeEl.innerHTML = "";
+/* Route rendering with passed segments + train icon in live mode */
+function renderRouteMap(currentCode){
+  routeEl.innerHTML="";
 
-  const liveCode = currentCode || currentStationCode || null;
+  const liveCode=currentCode || currentStationCode || null;
+  const liveMode=(currentMode==='live');
+  const currentIndex = liveCode
+    ? stations.findIndex(s=>s.code===liveCode)
+    : -1;
+  const lp = (typeof lastPassedIndex==='number') ? lastPassedIndex : null;
+  const nextIndex = (lp!=null && lp+1<stations.length) ? lp+1 : null;
 
-  stations.forEach((s, i) => {
-    if (i > 0) {
-      const c = document.createElement('div');
-      c.className = "connector";
-      routeEl.appendChild(c);
+  stations.forEach((s,i)=>{
+    if(i>0){
+      const conn=document.createElement('div');
+      conn.className="connector";
+
+      if(liveMode){
+        if(lp!=null && i-1<=lp){
+          conn.classList.add('connector-past');
+        }
+        if(nextIndex!=null && i-1===lp){
+          conn.classList.add('connector-active');
+          const train=document.createElement('div');
+          train.className="train-icon";
+          train.textContent="🚆";
+          conn.appendChild(train);
+        }
+      }
+      routeEl.appendChild(conn);
     }
 
-    const node = document.createElement('div');
-    node.className = "station";
-    node.dataset.index = i;
+    const node=document.createElement('div');
+    node.className="station";
+    node.dataset.index=i;
 
-    const dot = document.createElement('div');
-    dot.className = "dot";
+    const dot=document.createElement('div');
+    dot.className="dot";
 
-    if (liveCode && s.code === liveCode) {
-      dot.classList.add("current");
+    if(liveMode && lp!=null && i<=lp){
+      dot.classList.add('passed');
     }
 
-    dot.title = `${s.code} • ${s.name}`;
-    dot.addEventListener("click", () => onStationClick(i));
+    if(currentIndex===i){
+      dot.classList.remove('passed');
+      dot.classList.add('current');
+    }else if(!liveMode && liveCode && s.code===liveCode){
+      dot.classList.add('current');
+    }
 
-    const code = document.createElement("div");
-    code.className = "stCode";
-    code.textContent = s.code;
+    dot.title=`${s.code} • ${s.name}`;
+    dot.addEventListener('click',()=>onStationClick(i));
 
-    const name = document.createElement("div");
-    name.className = "stName";
-    name.textContent = s.name;
+    const code=document.createElement('div');
+    code.className="stCode";
+    code.textContent=s.code;
+
+    const name=document.createElement('div');
+    name.className="stName";
+    name.textContent=s.name;
 
     node.appendChild(dot);
     node.appendChild(code);
@@ -414,125 +654,156 @@ function renderRouteMap(currentCode) {
   updateHighlights();
 }
 
+/* Booking selection via clicks */
 function onStationClick(idx){
-  if(firstClickIndex==null){ firstClickIndex=idx; fromSel.value=String(idx); }
-  else { if(idx<=firstClickIndex){ firstClickIndex=idx; fromSel.value=String(idx); } else { toSel.value=String(idx); firstClickIndex=null; } }
+  if(firstClickIndex==null){
+    firstClickIndex=idx;
+    fromSel.value=String(idx);
+  }else{
+    if(idx<=firstClickIndex){
+      firstClickIndex=idx;
+      fromSel.value=String(idx);
+    }else{
+      toSel.value=String(idx);
+      firstClickIndex=null;
+    }
+  }
   updateHighlights();
 }
+
+/* Highlights only in booking mode */
 function updateHighlights(){
-  const start=+fromSel.value||0, end=+toSel.value||stations.length-1;
+  if(currentMode!=='booking'){
+    Array.from(routeEl.querySelectorAll('.dot')).forEach(d=>{
+      d.classList.remove('selected','range');
+    });
+    return;
+  }
+
+  const start=+fromSel.value||0;
+  const end=+toSel.value||stations.length-1;
+
   Array.from(routeEl.querySelectorAll('.station')).forEach((n,i)=>{
-    const d=n.querySelector('.dot'); d.classList.remove('selected','range');
-    if(i===start||i===end) d.classList.add('selected'); if(i>start&&i<end) d.classList.add('range');
+    const d=n.querySelector('.dot');
+    d.classList.remove('selected','range');
+    if(i===start||i===end) d.classList.add('selected');
+    if(i>start&&i<end)     d.classList.add('range');
   });
 }
 
-/* Booking logic */
+/* Booking logic with boarding-date handling */
 function calcBooking(){
-  if (!stations.length) { errEl.textContent = "Fetch route first."; return; }
-
-  const start = +fromSel.value, end = +toSel.value;
-  if (!Number.isInteger(start) || !Number.isInteger(end) || end <= start) {
-    errEl.textContent = "Pick a valid Start and End in order.";
+  if(!stations.length){
+    errEl.textContent="Fetch route first.";
     return;
   }
-  errEl.textContent = "";
-  warnEl.textContent = "";
 
-  const s = stations[start];
-  const dayCount = Math.max(1, parseInt(s.dayCount || "1", 10));
+  const start=+fromSel.value, end=+toSel.value;
+  if(!Number.isInteger(start)||!Number.isInteger(end)||end<=start){
+    errEl.textContent="Pick a valid Start and End in order.";
+    return;
+  }
+  errEl.textContent="";
+  warnEl.textContent="";
 
-  const picked = (journeyYMD || "").trim();          // calendar selection
-  if (!/^\d{8}$/.test(picked)) { 
-    errEl.textContent = "Pick the journey date."; 
-    return; 
+  const s=stations[start];
+  const dayCount=Math.max(1,parseInt(s.dayCount||"1",10));
+
+  const picked=(journeyYMD||"").trim();
+  if(!/^\d{8}$/.test(picked)){
+    errEl.textContent="Pick the journey date.";
+    return;
   }
 
-  const apiStation = (s.actDepDate || s.actArrDate || "").trim();
-  const addDaysUTC = (utc, d) => utc + d * DAY_MS;
+  const apiStation=(s.actDepDate||s.actArrDate||"").trim();
+  const addDaysUTC=(utc,d)=>utc+d*DAY_MS;
+  const ymdToUTC=(ymd)=>Date.UTC(
+    +ymd.slice(0,4),
+    +ymd.slice(4,6)-1,
+    +ymd.slice(6,8)
+  );
 
-  const ymdToUTC = (ymd) =>
-    Date.UTC(+ymd.slice(0,4), +ymd.slice(4,6)-1, +ymd.slice(6,8));
+  let originUTC, stationUTC, warnMsg="";
+  const pickedUTC=ymdToUTC(picked);
 
-  let originUTC, stationUTC, warnMsg = "";
+  if(/^\d{8}$/.test(apiStation)){
+    const stationApiUTC=ymdToUTC(apiStation);
+    const diffDays=Math.round((stationApiUTC-pickedUTC)/DAY_MS);
 
-  const pickedUTC = ymdToUTC(picked);
+    if(diffDays===0){
+      stationUTC=stationApiUTC;
+      originUTC =addDaysUTC(stationUTC, -(dayCount-1));
+    }else if(diffDays>0 && diffDays<= (dayCount-1)){
+      stationUTC=pickedUTC;
+      originUTC =addDaysUTC(stationUTC, -(dayCount-1));
 
-  if (/^\d{8}$/.test(apiStation)) {
-    const stationApiUTC = ymdToUTC(apiStation);
-    const diffDays = Math.round((stationApiUTC - pickedUTC) / DAY_MS);
-
-    if (diffDays === 0) {
-      // You picked the exact station date from the API
-      stationUTC = stationApiUTC;
-      originUTC  = addDaysUTC(stationUTC, -(dayCount - 1));
-    } else if (diffDays > 0 && diffDays <= (dayCount - 1)) {
-      // You likely picked your boarding date at this station.
-      // Origin must be earlier by (dayCount-1) days.
-      stationUTC = pickedUTC;
-      originUTC  = addDaysUTC(stationUTC, -(dayCount - 1));
-
-      const oStr = new Date(originUTC).toLocaleDateString(
+      const oStr=new Date(originUTC).toLocaleDateString(
         'en-IN',
-        { timeZone:'Asia/Kolkata', day:'2-digit', month:'short', year:'numeric' }
+        {timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric'}
       );
-      const apiStr = new Date(stationApiUTC).toLocaleDateString(
+      const apiStr=new Date(stationApiUTC).toLocaleDateString(
         'en-IN',
-        { timeZone:'Asia/Kolkata', day:'2-digit', month:'short', year:'numeric' }
+        {timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric'}
       );
-      warnMsg = `Heads up: ${s.code} is day ${dayCount} for this train. `
-              + `We treated ${picked} as your boarding date and `
-              + `set origin to ${oStr}. (API shows this station as ${apiStr}.)`;
-    } else {
-      // Fall back: treat picked as origin date (old behaviour)
-      originUTC  = pickedUTC;
-      stationUTC = addDaysUTC(originUTC, (dayCount - 1));
+      warnMsg=`Heads up: ${s.code} is day ${dayCount} for this train. `
+             +`We treated ${picked} as your boarding date and set origin to ${oStr}. `
+             +`(API shows this station as ${apiStr}.)`;
+    }else{
+      originUTC =pickedUTC;
+      stationUTC=addDaysUTC(originUTC, (dayCount-1));
 
-      const sdY = new Date(stationUTC).toLocaleDateString(
+      const sdY=new Date(stationUTC).toLocaleDateString(
         'en-IN',
-        { timeZone: 'Asia/Kolkata', day:'2-digit', month:'short', year:'numeric' }
+        {timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric'}
       );
-      warnMsg = `Heads up: for this run, ${s.code} is on ${sdY}. `
-              + `We kept your origin date and will compute booking from it.`;
+      warnMsg=`Heads up: for this run, ${s.code} is on ${sdY}. `
+             +`We kept your origin date and will compute booking from it.`;
     }
-  } else {
-    // No API station date → simple heuristic
-    if (dayCount === 1) {
-      originUTC  = pickedUTC;
-      stationUTC = originUTC;
-    } else {
-      stationUTC = pickedUTC;
-      originUTC  = addDaysUTC(stationUTC, -(dayCount - 1));
-      const oStr = new Date(originUTC).toLocaleDateString(
+  }else{
+    if(dayCount===1){
+      originUTC=pickedUTC;
+      stationUTC=originUTC;
+    }else{
+      stationUTC=pickedUTC;
+      originUTC=addDaysUTC(stationUTC, -(dayCount-1));
+      const oStr=new Date(originUTC).toLocaleDateString(
         'en-IN',
-        { timeZone:'Asia/Kolkata', day:'2-digit', month:'short', year:'numeric' }
+        {timeZone:'Asia/Kolkata',day:'2-digit',month:'short',year:'numeric'}
       );
-      warnMsg = `Assuming you picked the boarding date. Origin would be ${oStr}.`;
+      warnMsg=`Assuming you picked the boarding date. Origin would be ${oStr}.`;
     }
   }
 
-  if (warnMsg) warnEl.textContent = warnMsg;
+  if(warnMsg) warnEl.textContent=warnMsg;
 
-  // Origin display + booking @ 08:00 IST, 60 days before origin
-  const o = new Date(originUTC);
-  const oY = o.getUTCFullYear(), oM = o.getUTCMonth() + 1, oD = o.getUTCDate();
-  outOrigin.textContent = fmtDate(oY, oM, oD);
+  const o=new Date(originUTC);
+  const oY=o.getUTCFullYear(), oM=o.getUTCMonth()+1, oD=o.getUTCDate();
+  outOrigin.textContent=fmtDate(oY,oM,oD);
 
-  bookingUTC = originUTC - 60 * DAY_MS + ((8 * 60 - 330) * 60 * 1000);
-  outBooking.textContent = fmtFull(bookingUTC) + " IST";
-  resultCard.style.display = '';
+  bookingUTC = originUTC - 60*DAY_MS + ((8*60-330)*60*1000);
+  outBooking.textContent=fmtFull(bookingUTC)+" IST";
+  resultCard.style.display='';
 
   renderCountdown();
-  if (window._cd) clearInterval(window._cd);
-  window._cd = setInterval(renderCountdown, 30000);
+  if(window._cd) clearInterval(window._cd);
+  window._cd=setInterval(renderCountdown,30000);
 
   setMode('booking');
 }
 
 function renderCountdown(){
-  if(!bookingUTC){ countdownEl.textContent=""; return; }
-  const diff=bookingUTC-Date.now(); if(diff<=0){ countdownEl.textContent="Open now"; return; }
-  const d=Math.floor(diff/DAY_MS), h=Math.floor((diff%DAY_MS)/3600000), m=Math.floor((diff%3600000)/60000);
+  if(!bookingUTC){
+    countdownEl.textContent="";
+    return;
+  }
+  const diff=bookingUTC-Date.now();
+  if(diff<=0){
+    countdownEl.textContent="Open now";
+    return;
+  }
+  const d=Math.floor(diff/DAY_MS);
+  const h=Math.floor((diff%DAY_MS)/3600000);
+  const m=Math.floor((diff%3600000)/60000);
   countdownEl.textContent=`Opens in ${d}d ${h}h ${m}m`;
 }
 </script>
