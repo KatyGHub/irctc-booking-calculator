@@ -68,7 +68,10 @@ footer a:hover{text-decoration:underline}
         <input id="journey" class="input" type="text" placeholder="Select date" readonly>
         <div class="small">Pick from calendar.</div>
       </div>
-      <div style="display:flex;align-items:end"><button id="fetch" class="primary">Fetch route</button></div>
+<div style="display:flex;align-items:end;gap:8px">
+  <button id="fetch" class="primary">Fetch route</button>
+  <button id="trackLive">Track live</button>
+</div>
     </div>
     <div id="err" class="small err"></div>
     <div id="warn" class="small" style="color:#f59e0b"></div>
@@ -146,6 +149,7 @@ let stations=[], bookingUTC=null, firstClickIndex=null, journeyYMD=null;
 
 document.getElementById('fetch').addEventListener('click', fetchRoute);
 document.getElementById('calc').addEventListener('click', calcBooking);
+document.getElementById('trackLive').addEventListener('click', trackLive);
 
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('/service-worker.js').catch(()=>{}));}
 
@@ -155,60 +159,175 @@ function getSelectedYMD(){
   if(/^\d{4}-\d{2}-\d{2}$/.test(v)) return v.replace(/-/g,''); // native fallback
   return null;
 }
-
-async function fetchRoute(){
-  errEl.textContent="";
+function getTodayYMDIST() {
+  const now = new Date();
+  // Rough IST correction: convert local time to UTC, then add 5h30m
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+  const ist = new Date(utc + 330 * 60000);
+  const y = ist.getFullYear();
+  const m = String(ist.getMonth() + 1).padStart(2, '0');
+  const d = String(ist.getDate()).padStart(2, '0');
+  return `${y}${m}${d}`;
+}
+  
+async function fetchRoute() {
+  errEl.textContent = "";
   warnEl.textContent = "";
-  routeCard.style.display='none'; resultCard.style.display='none'; liveCard.style.display='none';
-  stations=[]; bookingUTC=null; firstClickIndex=null;
+  routeCard.style.display = "none";
+  resultCard.style.display = "none";
+  liveCard.style.display = "none";
+  stations = [];
+  bookingUTC = null;
+  firstClickIndex = null;
 
-  const tn=(document.getElementById('trainNo').value||'').trim();
-  const ymd=getSelectedYMD();
-  journeyYMD=ymd;  // remember user’s boarding date
+  const tn = (document.getElementById('trainNo').value || '').trim();
+  const ymd = getSelectedYMD();
 
-  if(!/^\d{3,5}$/.test(tn)){ errEl.textContent="Enter a valid train number (3–5 digits)."; return; }
-  if(!/^\d{8}$/.test(ymd||"")) { errEl.textContent="Pick the journey date."; return; }
+  if (!/^\d{3,5}$/.test(tn)) {
+    errEl.textContent = "Enter a valid train number (3–5 digits).";
+    return;
+  }
+  if (!/^\d{8}$/.test(ymd || "")) {
+    errEl.textContent = "Pick the journey date.";
+    return;
+  }
 
-  const url=new URL('/.netlify/functions/trainStatus', location.origin);
-  url.searchParams.set('train_number', tn);
-  url.searchParams.set('departure_date', ymd);
+  journeyYMD = ymd; // this is used by calcBooking
+  await loadStatus(tn, ymd, { scrollToCurrent: false });
+}
+
+async function trackLive() {
+  errEl.textContent = "";
+  warnEl.textContent = "";
+  routeCard.style.display = "none";
+  resultCard.style.display = "none";
+  liveCard.style.display = "none";
+  stations = [];
+  bookingUTC = null;
+  firstClickIndex = null;
+
+  const tn = (document.getElementById('trainNo').value || '').trim();
+  if (!/^\d{3,5}$/.test(tn)) {
+    errEl.textContent = "Enter a valid train number (3–5 digits).";
+    return;
+  }
+
+  const todayYMD = getTodayYMDIST();
+  // For live tracking we don’t use journeyYMD in booking calculation,
+  // so we don't touch it here.
+  await loadStatus(tn, todayYMD, { scrollToCurrent: true });
+}
+
+let currentStationCode = null; // global, used by renderRouteMap
+
+async function loadStatus(train_number, departureYMD, options = {}) {
+  const { scrollToCurrent = false } = options;
+
+  const url = new URL('/.netlify/functions/trainStatus', location.origin);
+  url.searchParams.set('train_number', train_number);
+  url.searchParams.set('departure_date', departureYMD);
 
   let payload;
-  try{
-    const res=await fetch(url.toString());
-    const text=await res.text();
-    if(!res.ok){ errEl.textContent="API error. Try a different date or train."; return; }
-    payload=JSON.parse(text);
-  }catch{ errEl.textContent="Could not reach server."; return; }
+  try {
+    const res = await fetch(url.toString());
+    const text = await res.text();
+    if (!res.ok) {
+      errEl.textContent = "API error. Try a different date or train.";
+      return;
+    }
+    payload = JSON.parse(text);
+  } catch (e) {
+    errEl.textContent = "Could not reach server.";
+    return;
+  }
 
-  const brief=payload.brief||{};
-  stations=brief.stations||[];
-  if(!stations.length){ errEl.textContent="No station data for that run."; return; }
+  const brief = payload.brief || {};
+  stations = brief.stations || [];
+  if (!stations.length) {
+    errEl.textContent = "No station data for that run.";
+    return;
+  }
 
-  const cleanMsg=(brief.train_status_message||"").replace(/<[^>]+>/g,'').trim();
-  metaEl.textContent=[brief.trainNumber?`Train: ${brief.trainNumber}`:null, brief.current_station?`Current: ${brief.current_station}`:null, cleanMsg||null].filter(Boolean).join(" • ");
-  if(brief.current_station||cleanMsg){ liveCard.style.display=''; liveMsg.textContent=cleanMsg||`Current station: ${brief.current_station}`; }
+  currentStationCode = brief.current_station || null;
 
-  fromSel.innerHTML=stations.map((s,i)=>`<option value="${i}">${s.code} — ${s.name}</option>`).join('');
-  toSel.innerHTML  =stations.map((s,i)=>`<option value="${i}">${s.code} — ${s.name}</option>`).join('');
-  fromSel.value="0"; toSel.value=String(stations.length-1);
+  const cleanMsg = (brief.train_status_message || "").replace(/<[^>]+>/g, "").trim();
+  metaEl.textContent = [
+    brief.trainNumber ? `Train: ${brief.trainNumber}` : null,
+    currentStationCode ? `Current: ${currentStationCode}` : null,
+    cleanMsg || null
+  ].filter(Boolean).join(" • ");
 
-  renderRouteMap(brief.current_station||null);
-  routeCard.style.display='';
+  if (currentStationCode || cleanMsg) {
+    liveCard.style.display = '';
+    liveMsg.textContent = cleanMsg || `Current station: ${currentStationCode}`;
+  }
+
+  // Populate dropdowns
+  fromSel.innerHTML = stations.map((s, i) => `<option value="${i}">${s.code} — ${s.name}</option>`).join('');
+  toSel.innerHTML   = stations.map((s, i) => `<option value="${i}">${s.code} — ${s.name}</option>`).join('');
+  fromSel.value = "0";
+  toSel.value   = String(stations.length - 1);
+
+  renderRouteMap();        // will use currentStationCode for highlighting
+  routeCard.style.display = '';
+
+  if (scrollToCurrent) {
+    // Smooth scroll to the current station dot
+    setTimeout(() => {
+      const marker = routeEl.querySelector('.dot.current');
+      if (marker) {
+        marker.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      }
+    }, 100);
+  }
 }
 
-function renderRouteMap(currentCode){
-  routeEl.innerHTML="";
-  stations.forEach((s,i)=>{
-    if(i>0){const c=document.createElement('div'); c.className="connector"; routeEl.appendChild(c);}
-    const node=document.createElement('div'); node.className="station"; node.dataset.index=i;
-    const dot=document.createElement('div'); dot.className="dot"; if(currentCode&&s.code===currentCode) dot.classList.add('current'); dot.title=`${s.code} • ${s.name}`; dot.addEventListener('click',()=>onStationClick(i));
-    const code=document.createElement('div'); code.className="stCode"; code.textContent=s.code;
-    const name=document.createElement('div'); name.className="stName"; name.textContent=s.name;
-    node.appendChild(dot); node.appendChild(code); node.appendChild(name); routeEl.appendChild(node);
+function renderRouteMap(currentCode) {
+  routeEl.innerHTML = "";
+
+  // Prefer the argument if provided, else fallback to global currentStationCode
+  const liveCode = currentCode || currentStationCode || null;
+
+  stations.forEach((s, i) => {
+
+    if (i > 0) {
+      const c = document.createElement('div');
+      c.className = "connector";
+      routeEl.appendChild(c);
+    }
+
+    const node = document.createElement('div');
+    node.className = "station";
+    node.dataset.index = i;
+
+    const dot = document.createElement('div');
+    dot.className = "dot";
+
+    // Highlight the *live* station (via currentCode OR global currentStationCode)
+    if (liveCode && s.code === liveCode) {
+      dot.classList.add("current");
+    }
+
+    dot.title = `${s.code} • ${s.name}`;
+    dot.addEventListener("click", () => onStationClick(i));
+
+    const code = document.createElement("div");
+    code.className = "stCode";
+    code.textContent = s.code;
+
+    const name = document.createElement("div");
+    name.className = "stName";
+    name.textContent = s.name;
+
+    node.appendChild(dot);
+    node.appendChild(code);
+    node.appendChild(name);
+    routeEl.appendChild(node);
   });
+
   updateHighlights();
 }
+  
 function onStationClick(idx){
   if(firstClickIndex==null){ firstClickIndex=idx; fromSel.value=String(idx); }
   else { if(idx<=firstClickIndex){ firstClickIndex=idx; fromSel.value=String(idx); } else { toSel.value=String(idx); firstClickIndex=null; } }
