@@ -48,6 +48,11 @@ footer a{color:var(--muted);text-decoration:none}
 footer a:hover{text-decoration:underline}
 .live{display:flex;gap:8px;align-items:center}
 .dotlive{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 4px rgba(52,211,153,.15)}
+/* Tabs */
+#tabs{margin-top:10px;display:flex;gap:8px}
+.tab{border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--muted);padding:6px 14px;font-size:13px;cursor:pointer}
+.tab.active{background:var(--accent);color:#051225;border-color:var(--accent)}
+.hidden{display:none !important}
 </style>
 </head>
 <body>
@@ -55,6 +60,10 @@ footer a:hover{text-decoration:underline}
   <header>
     <h1>DayZero IRCTC</h1>
     <div class="small">Booking opens at 08:00 IST, 60 days before the train’s origin start date.</div>
+    <div id="tabs">
+      <button id="tabBooking" class="tab active">Booking</button>
+      <button id="tabLive" class="tab">Live tracking</button>
+    </div>
   </header>
 
   <section class="card">
@@ -68,10 +77,10 @@ footer a:hover{text-decoration:underline}
         <input id="journey" class="input" type="text" placeholder="Select date" readonly>
         <div class="small">Pick from calendar.</div>
       </div>
-<div style="display:flex;align-items:end;gap:8px">
-  <button id="fetch" class="primary">Fetch route</button>
-  <button id="trackLive">Track live</button>
-</div>
+      <div style="display:flex;align-items:end;gap:8px">
+        <button id="fetch" class="primary">Fetch route</button>
+        <button id="trackLive">Track live</button>
+      </div>
     </div>
     <div id="err" class="small err"></div>
     <div id="warn" class="small" style="color:#f59e0b"></div>
@@ -79,7 +88,8 @@ footer a:hover{text-decoration:underline}
 
   <section id="routeCard" class="card" style="display:none">
     <div id="meta" class="small"></div>
-    <div class="routeWrap"><div id="route" class="route"></div></div>
+    <!-- Route map wrapper: hidden in Booking tab, visible in Live tab -->
+    <div id="routeScroll" class="routeWrap"><div id="route" class="route"></div></div>
     <div class="helper">Tip: Click one station for Start, then another later station for End. You can still adjust using the dropdowns.</div>
     <div class="row" style="grid-template-columns:1fr 1fr auto;margin-top:10px">
       <div><label>Start (boarding)</label><select id="fromSel" class="input"></select></div>
@@ -102,9 +112,9 @@ footer a:hover{text-decoration:underline}
     <div id="liveMsg" style="margin-top:8px"></div>
   </section>
 
-<footer class="small">
-<a href="https://www.linkedin.com/in/kaarthik-ashok" target="_blank" rel="noopener">Made with ❤️ by Kaarthik</a>
-</footer>
+  <footer class="small">
+    <a href="https://www.linkedin.com/in/kaarthik-ashok" target="_blank" rel="noopener">Made with ❤️ by Kaarthik</a>
+  </footer>
 </main>
 
 <script>
@@ -130,8 +140,8 @@ document.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{if(!_flatpickr
 const DAY_MS=86400000;
 const fmtDate=(y,m,d)=>new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(Date.UTC(y,m-1,d)));
 const fmtFull=(ms)=>new Intl.DateTimeFormat('en-IN',{timeZone:'Asia/Kolkata',weekday:'short',month:'short',day:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(new Date(ms)).replace(/\u200E/g,'');
-const warnEl = document.getElementById('warn');
 
+const warnEl = document.getElementById('warn');
 const errEl=document.getElementById('err');
 const routeCard=document.getElementById('routeCard');
 const resultCard=document.getElementById('resultCard');
@@ -144,8 +154,37 @@ const toSel=document.getElementById('toSel');
 const outOrigin=document.getElementById('outOrigin');
 const outBooking=document.getElementById('outBooking');
 const countdownEl=document.getElementById('countdown');
+const routeScroll=document.getElementById('routeScroll');
+
+const tabBooking=document.getElementById('tabBooking');
+const tabLive=document.getElementById('tabLive');
 
 let stations=[], bookingUTC=null, firstClickIndex=null, journeyYMD=null;
+let currentStationCode = null; // global, used by renderRouteMap
+
+// Mode switching: booking vs live
+function setMode(mode){
+  if(mode==='booking'){
+    tabBooking.classList.add('active');
+    tabLive.classList.remove('active');
+    if(routeScroll) routeScroll.classList.add('hidden');   // hide map
+    if(liveCard)    liveCard.classList.add('hidden');      // hide live status
+    if(resultCard)  resultCard.classList.remove('hidden'); // show booking card
+  }else{
+    tabLive.classList.add('active');
+    tabBooking.classList.remove('active');
+    if(routeScroll) routeScroll.classList.remove('hidden'); // show map
+    if(liveCard)    liveCard.classList.remove('hidden');    // show live status
+    if(resultCard)  resultCard.classList.add('hidden');     // hide booking card
+  }
+}
+
+// Tab click handlers
+tabBooking.addEventListener('click',()=>setMode('booking'));
+tabLive.addEventListener('click',()=>setMode('live'));
+
+// Default mode
+setMode('booking');
 
 document.getElementById('fetch').addEventListener('click', fetchRoute);
 document.getElementById('calc').addEventListener('click', calcBooking);
@@ -161,7 +200,6 @@ function getSelectedYMD(){
 }
 function getTodayYMDIST() {
   const now = new Date();
-  // Rough IST correction: convert local time to UTC, then add 5h30m
   const utc = now.getTime() + now.getTimezoneOffset() * 60000;
   const ist = new Date(utc + 330 * 60000);
   const y = ist.getFullYear();
@@ -169,7 +207,7 @@ function getTodayYMDIST() {
   const d = String(ist.getDate()).padStart(2, '0');
   return `${y}${m}${d}`;
 }
-  
+
 async function fetchRoute() {
   errEl.textContent = "";
   warnEl.textContent = "";
@@ -194,6 +232,9 @@ async function fetchRoute() {
 
   journeyYMD = ymd; // this is used by calcBooking
   await loadStatus(tn, ymd, { scrollToCurrent: false });
+
+  // After fetching route we stay in Booking mode
+  setMode('booking');
 }
 
 async function trackLive() {
@@ -213,7 +254,7 @@ async function trackLive() {
   }
 
   // Prefer the date selected in the calendar (same run as "Fetch route")
-  let ymd = getSelectedYMD();      // this is the same helper used in fetchRoute()
+  let ymd = getSelectedYMD();
 
   if (!/^\d{8}$/.test(ymd || "")) {
     // No date selected – fall back to "today" and tell the user
@@ -221,11 +262,11 @@ async function trackLive() {
     warnEl.textContent = "No journey date selected. Tracking today’s run for this train.";
   }
 
-  // For live tracking we just load status and scroll to the current station
   await loadStatus(tn, ymd, { scrollToCurrent: true });
-}
 
-let currentStationCode = null; // global, used by renderRouteMap
+  // Show Live mode after tracking
+  setMode('live');
+}
 
 async function loadStatus(train_number, departureYMD, options = {}) {
   const { scrollToCurrent = false } = options;
@@ -275,11 +316,10 @@ async function loadStatus(train_number, departureYMD, options = {}) {
   fromSel.value = "0";
   toSel.value   = String(stations.length - 1);
 
-  renderRouteMap();        // will use currentStationCode for highlighting
+  renderRouteMap();
   routeCard.style.display = '';
 
   if (scrollToCurrent) {
-    // Smooth scroll to the current station dot
     setTimeout(() => {
       const marker = routeEl.querySelector('.dot.current');
       if (marker) {
@@ -292,7 +332,6 @@ async function loadStatus(train_number, departureYMD, options = {}) {
 function renderRouteMap(currentCode) {
   routeEl.innerHTML = "";
 
-  // Prefer the argument if provided, else fallback to global currentStationCode
   const liveCode = currentCode || currentStationCode || null;
 
   stations.forEach((s, i) => {
@@ -310,7 +349,6 @@ function renderRouteMap(currentCode) {
     const dot = document.createElement('div');
     dot.className = "dot";
 
-    // Highlight the *live* station (via currentCode OR global currentStationCode)
     if (liveCode && s.code === liveCode) {
       dot.classList.add("current");
     }
@@ -334,7 +372,7 @@ function renderRouteMap(currentCode) {
 
   updateHighlights();
 }
-  
+
 function onStationClick(idx){
   if(firstClickIndex==null){ firstClickIndex=idx; fromSel.value=String(idx); }
   else { if(idx<=firstClickIndex){ firstClickIndex=idx; fromSel.value=String(idx); } else { toSel.value=String(idx); firstClickIndex=null; } }
@@ -363,13 +401,12 @@ function calcBooking(){
   const s = stations[start];
   const dayCount = Math.max(1, parseInt(s.dayCount || "1", 10));
 
-  const picked = (journeyYMD || "").trim();              // what you chose in calendar
+  const picked = (journeyYMD || "").trim();
   if (!/^\d{8}$/.test(picked)) { errEl.textContent = "Pick the journey date."; return; }
 
-  const apiStation = (s.actDepDate || s.actArrDate || "").trim(); // API’s station date if present
+  const apiStation = (s.actDepDate || s.actArrDate || "").trim();
   const addDaysUTC = (utc, d) => utc + d*DAY_MS;
 
-  // Helpers
   const ymdToUTC = (ymd) => Date.UTC(+ymd.slice(0,4), +ymd.slice(4,6)-1, +ymd.slice(6,8));
   const utcToYMD = (utc) => {
     const d = new Date(utc);
@@ -381,12 +418,9 @@ function calcBooking(){
 
   if (/^\d{8}$/.test(apiStation)) {
     if (apiStation === picked) {
-      // You picked the boarding date at this station
       stationUTC = ymdToUTC(apiStation);
       originUTC  = addDaysUTC(stationUTC, -(dayCount - 1));
-      // no warning
     } else {
-      // You picked the run’s ORIGIN date; compute station date from origin
       originUTC  = ymdToUTC(picked);
       stationUTC = addDaysUTC(originUTC, (dayCount - 1));
 
@@ -394,10 +428,9 @@ function calcBooking(){
       warnMsg = `Heads up: for this run, ${s.code} is on ${sdY}. We kept your origin date and will compute booking from it.`;
     }
   } else {
-    // No API station date. Heuristic: if dayCount==1, assume picked is origin; else assume picked is station date but tell user.
     if (dayCount === 1) {
       originUTC  = ymdToUTC(picked);
-      stationUTC = originUTC; // same day
+      stationUTC = originUTC;
     } else {
       stationUTC = ymdToUTC(picked);
       originUTC  = addDaysUTC(stationUTC, -(dayCount - 1));
@@ -408,7 +441,6 @@ function calcBooking(){
 
   if (warnMsg) warnEl.textContent = warnMsg;
 
-  // Display origin and compute booking @ 08:00 IST, 60 days prior
   const o = new Date(originUTC);
   const oY = o.getUTCFullYear(), oM = o.getUTCMonth() + 1, oD = o.getUTCDate();
   outOrigin.textContent = fmtDate(oY, oM, oD);
@@ -420,8 +452,11 @@ function calcBooking(){
   renderCountdown();
   if (window._cd) clearInterval(window._cd);
   window._cd = setInterval(renderCountdown, 30000);
+
+  // Ensure we’re on Booking tab after calculation
+  setMode('booking');
 }
-  
+
 function renderCountdown(){
   if(!bookingUTC){ countdownEl.textContent=""; return; }
   const diff=bookingUTC-Date.now(); if(diff<=0){ countdownEl.textContent="Open now"; return; }
