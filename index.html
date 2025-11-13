@@ -101,7 +101,7 @@ button.primary{
   display:flex;
   flex-direction:column;
   align-items:center;
-  gap:6px;
+  gap:4px;
   min-width:84px
 }
 .dot{
@@ -118,13 +118,10 @@ button.primary{
 }
 .dot.selected{background:var(--ok);border-color:var(--ok)}
 .dot.range{background:#2563eb;border-color:#2563eb}
-
-/* crossed stations in live mode */
 .dot.passed{
   background:var(--ok);
   border-color:var(--ok);
 }
-
 .stCode{font:12px ui-monospace,Menlo,Consolas,monospace}
 .stName{font-size:12px;color:var(--muted);text-align:center;max-width:120px}
 .connector{
@@ -135,16 +132,12 @@ button.primary{
   position:relative;
   border-radius:999px;
 }
-
-/* past and active route segments */
 .connector-past{
   background:rgba(52,211,153,0.55);
 }
 .connector-active{
   background:var(--accent);
 }
-
-/* small train on the active connector */
 .train-icon{
   position:absolute;
   top:50%;
@@ -152,6 +145,23 @@ button.primary{
   transform:translate(-50%,-50%);
   font-size:14px;
   pointer-events:none;
+}
+.timeInfo{
+  font-size:11px;
+  text-align:center;
+  line-height:1.2;
+}
+.timeSch{
+  color:var(--muted);
+}
+.timeAct{
+  font-weight:500;
+}
+.timeAct.onTime{
+  color:var(--ok);
+}
+.timeAct.late{
+  color:var(--err);
 }
 
 .helper{color:var(--muted);font-size:12px;margin-top:6px}
@@ -195,22 +205,6 @@ footer a:hover{text-decoration:underline}
   border-color:var(--accent)
 }
 .hidden{display:none !important}
-
-/* History table */
-#historyTable{
-  width:100%;
-  border-collapse:collapse;
-  font-size:12px;
-}
-#historyTable th,
-#historyTable td{
-  padding:4px 6px;
-  border-bottom:1px solid rgba(148,163,184,.18);
-}
-#historyTable th{
-  text-align:left;
-  color:var(--muted);
-}
 </style>
 </head>
 <body>
@@ -233,7 +227,6 @@ footer a:hover{text-decoration:underline}
       <div>
         <label>Journey date</label>
         <input id="journey" class="input" type="text" placeholder="Select date" readonly>
-        <div class="small">Pick from calendar.</div>
       </div>
       <div style="display:flex;align-items:end;gap:8px;justify-content:flex-end">
         <button id="fetch" class="primary">Fetch route</button>
@@ -244,16 +237,17 @@ footer a:hover{text-decoration:underline}
     <div id="warn" class="small" style="color:#f59e0b"></div>
   </section>
 
+  <!-- Live status card (shown only in Live tab) -->
+  <section id="liveCard" class="card" style="display:none">
+    <div class="live"><span class="dotlive"></span><b>Live Status</b></div>
+    <div id="liveMsg" style="margin-top:8px"></div>
+  </section>
+
+  <!-- Shared card: route map + booking controls -->
   <section id="routeCard" class="card" style="display:none">
     <div id="meta" class="small"></div>
     <div id="routeScroll" class="routeWrap">
       <div id="route" class="route"></div>
-    </div>
-
-    <!-- History table (live tab only) -->
-    <div id="historyWrap" style="display:none;margin-top:8px">
-      <div class="small" style="margin-bottom:4px">Run details for selected date:</div>
-      <table id="historyTable"></table>
     </div>
 
     <div id="helper" class="helper">
@@ -285,11 +279,6 @@ footer a:hover{text-decoration:underline}
       08:00 IST, 60 days before origin. Aadhaar KYC is mandatory for 08:00–10:00 slot.
       <span id="countdown" class="badge" style="margin-left:8px"></span>
     </div>
-  </section>
-
-  <section id="liveCard" class="card" style="display:none">
-    <div class="live"><span class="dotlive"></span><b>Live Status</b></div>
-    <div id="liveMsg" style="margin-top:8px"></div>
   </section>
 
   <footer class="small">
@@ -367,8 +356,6 @@ const countdownEl=document.getElementById('countdown');
 const routeScroll=document.getElementById('routeScroll');
 const bookingRow=document.getElementById('bookingOnly');
 const helperEl=document.getElementById('helper');
-const historyWrap=document.getElementById('historyWrap');
-const historyTable=document.getElementById('historyTable');
 
 const tabBooking=document.getElementById('tabBooking');
 const tabLive=document.getElementById('tabLive');
@@ -393,13 +380,12 @@ function setMode(mode){
     fetchBtn.style.display = '';
     trackBtn.style.display = 'none';
 
-    if (routeScroll) routeScroll.classList.add('hidden');   // hide map
+    if (routeScroll && stations.length) routeScroll.classList.add('hidden');
     if (liveCard)    liveCard.style.display = 'none';
-    if (resultCard && stations.length) resultCard.style.display = ''; // show result if available
+    if (resultCard && stations.length) resultCard.style.display = '';
 
-    if (bookingRow)  bookingRow.style.display = '';         // show selectors
+    if (bookingRow)  bookingRow.style.display = '';
     if (helperEl)    helperEl.style.display = '';
-    if (historyWrap) historyWrap.style.display = 'none';
   } else {
     tabLive.classList.add('active');
     tabBooking.classList.remove('active');
@@ -407,18 +393,16 @@ function setMode(mode){
     fetchBtn.style.display = 'none';
     trackBtn.style.display = '';
 
-    if (routeScroll && stations.length) routeScroll.classList.remove('hidden'); // show map
+    if (routeScroll && stations.length) routeScroll.classList.remove('hidden');
     if (liveCard && stations.length)    liveCard.style.display = '';
     if (resultCard)  resultCard.style.display = 'none';
 
-    if (bookingRow)  bookingRow.style.display = 'none';     // hide selectors
+    if (bookingRow)  bookingRow.style.display = 'none';
     if (helperEl)    helperEl.style.display = 'none';
-    if (historyWrap && stations.length) historyWrap.style.display = '';
   }
 
   if (stations.length) {
     rebuildMeta();
-    renderHistoryTable();
     renderRouteMap();
   }
 }
@@ -431,17 +415,11 @@ document.getElementById('fetch').addEventListener('click', fetchRoute);
 document.getElementById('calc').addEventListener('click', calcBooking);
 document.getElementById('trackLive').addEventListener('click', trackLive);
 
-/* Enter-to-submit and auto-fetch in live tab */
+/* Enter-to-submit */
 trainInput.addEventListener('keydown', (e)=>{
   if(e.key === 'Enter'){
     if(currentMode === 'live') trackLive();
     else fetchRoute();
-  }
-});
-trainInput.addEventListener('blur', ()=>{
-  if(currentMode === 'live'){
-    const val=(trainInput.value||'').trim();
-    if(/^\d{3,5}$/.test(val)) trackLive();
   }
 });
 
@@ -467,6 +445,16 @@ function getTodayYMDIST(){
   const d=String(ist.getDate()).padStart(2,'0');
   return `${y}${m}${d}`;
 }
+function shiftYMD(ymd, deltaDays){
+  const y=+ymd.slice(0,4);
+  const m=+ymd.slice(4,6)-1;
+  const d=+ymd.slice(6,8);
+  const dt=new Date(Date.UTC(y,m,d)+deltaDays*DAY_MS);
+  const yy=dt.getUTCFullYear();
+  const mm=String(dt.getUTCMonth()+1).padStart(2,'0');
+  const dd=String(dt.getUTCDate()).padStart(2,'0');
+  return `${yy}${mm}${dd}`;
+}
 
 function resetUi(){
   errEl.textContent="";
@@ -480,7 +468,6 @@ function resetUi(){
   bookingUTC=null;
   firstClickIndex=null;
   lastPassedIndex=null;
-  if(historyTable) historyTable.innerHTML="";
 }
 
 /* Booking tab: fetch route */
@@ -500,7 +487,7 @@ async function fetchRoute(){
   }
 
   journeyYMD=ymd;
-  await loadStatus(tn, ymd, {scrollToCurrent:false});
+  await loadStatus(tn, ymd, {scrollToCurrent:false, liveAutoDate:false});
 
   setMode('booking');
 }
@@ -516,17 +503,22 @@ async function trackLive(){
   }
 
   let ymd=getSelectedYMD();
+  let autoDate=false;
   if(!/^\d{8}$/.test(ymd||"")){
     ymd=getTodayYMDIST();
-    warnEl.textContent="No journey date selected. Tracking today’s run for this train.";
+    autoDate=true;
   }
 
-  await loadStatus(tn, ymd, {scrollToCurrent:true});
+  await loadStatus(tn, ymd, {
+    scrollToCurrent:true,
+    liveAutoDate:autoDate,
+    triedFallback:false
+  });
 
   setMode('live');
 }
 
-/* Parse last passed station from message */
+/* Figure out last crossed station index from status message */
 function computeLastPassedIndex(brief){
   const raw = brief.train_status_message || "";
   let m = raw.match(/<b>([^<]+)<\/b>/i);
@@ -553,8 +545,13 @@ function computeLastPassedIndex(brief){
   return null;
 }
 
+/* Core loader with optional fallback to yesterday when today's run hasn't started */
 async function loadStatus(train_number, departureYMD, options={}){
-  const {scrollToCurrent=false}=options;
+  const {
+    scrollToCurrent=false,
+    liveAutoDate=false,
+    triedFallback=false
+  } = options;
 
   const url=new URL('/.netlify/functions/trainStatus',location.origin);
   url.searchParams.set('train_number',train_number);
@@ -583,10 +580,25 @@ async function loadStatus(train_number, departureYMD, options={}){
     return;
   }
 
+  const msgRaw = brief.train_status_message || "";
+  const msgPlain = msgRaw.replace(/<[^>]+>/g,"").toLowerCase();
+  const looksNotStarted = /hasn[’']?t started|has not started|not started from the originating/.test(msgPlain);
+
+  // Fallback: if live auto-date and today's run hasn't started, try yesterday
+  if(currentMode==='live' && liveAutoDate && looksNotStarted && !triedFallback){
+    const prev = shiftYMD(departureYMD,-1);
+    warnEl.textContent = "Today's run hasn't started yet. Showing yesterday's run if it is still in progress.";
+    return await loadStatus(train_number, prev, {
+      scrollToCurrent,
+      liveAutoDate:false,
+      triedFallback:true
+    });
+  }
+
   currentStationCode=brief.current_station||null;
   lastPassedIndex=computeLastPassedIndex(brief);
 
-  const cleanMsg=(brief.train_status_message||"").replace(/<[^>]+>/g,"").trim();
+  const cleanMsg=msgRaw.replace(/<[^>]+>/g,"").trim();
   rebuildMeta(cleanMsg);
 
   if(currentStationCode||cleanMsg){
@@ -600,8 +612,20 @@ async function loadStatus(train_number, departureYMD, options={}){
   toSel.value=String(stations.length-1);
 
   renderRouteMap();
-  renderHistoryTable();
   routeCard.style.display='';
+
+  if(scrollToCurrent){
+    setTimeout(()=>{
+      let marker = routeEl.querySelector('.dot.current');
+      if(!marker && lastPassedIndex!=null){
+        const dots = routeEl.querySelectorAll('.dot');
+        if(dots[lastPassedIndex]) marker = dots[lastPassedIndex];
+      }
+      if(marker){
+        marker.scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'});
+      }
+    },120);
+  }
 }
 
 /* Meta line: booking vs live */
@@ -626,43 +650,7 @@ function rebuildMeta(cleanMsgOverride){
   metaEl.textContent=bits.filter(Boolean).join(" • ");
 }
 
-/* History table: arrival/departure for this run (live tab only) */
-function renderHistoryTable(){
-  if(!historyWrap || !historyTable){
-    return;
-  }
-  if(currentMode!=='live' || !stations.length){
-    historyWrap.style.display='none';
-    historyTable.innerHTML='';
-    return;
-  }
-
-  historyWrap.style.display='';
-  const rows=[];
-  rows.push(`<tr>
-    <th>Code</th>
-    <th>Station</th>
-    <th>Day</th>
-    <th>Arr</th>
-    <th>Dep</th>
-  </tr>`);
-
-  stations.forEach((s)=>{
-    const arr = s.actArr || s.schArr || '-';
-    const dep = s.actDep || s.schDep || '-';
-    const day = s.dayCount || s.dayCnt || '';
-    rows.push(`<tr>
-      <td>${s.code || ''}</td>
-      <td>${s.name || ''}</td>
-      <td>${day}</td>
-      <td>${arr}</td>
-      <td>${dep}</td>
-    </tr>`);
-  });
-  historyTable.innerHTML = rows.join('');
-}
-
-/* Route rendering with passed segments + train icon in live mode */
+/* Route rendering with passed segments, train icon and schedule/actual times */
 function renderRouteMap(currentCode){
   routeEl.innerHTML="";
 
@@ -726,13 +714,60 @@ function renderRouteMap(currentCode){
     node.appendChild(dot);
     node.appendChild(code);
     node.appendChild(name);
+
+    // Schedule vs actual times (live mode only)
+    if(liveMode){
+      const sch = s.schArr || s.stdArr || s.schDep || s.stdDep || "";
+      const act = s.actArr || s.actDep || "";
+      if(sch || act){
+        const ti=document.createElement('div');
+        ti.className='timeInfo';
+
+        if(sch){
+          const schEl=document.createElement('div');
+          schEl.className='timeSch';
+          schEl.textContent = `Sch: ${sch}`;
+          ti.appendChild(schEl);
+        }
+
+        if(act){
+          const actEl=document.createElement('div');
+          actEl.className='timeAct';
+
+          if(sch && isOnTimeOrEarly(act, sch)){
+            actEl.classList.add('onTime');
+          }else if(sch){
+            actEl.classList.add('late');
+          }
+
+          actEl.textContent = `Act: ${act}`;
+          ti.appendChild(actEl);
+        }
+
+        node.appendChild(ti);
+      }
+    }
+
     routeEl.appendChild(node);
   });
 
   updateHighlights();
 }
 
-/* Booking selection via clicks */
+/* helper for HH:MM comparison */
+function parseHM(str){
+  const m=str.match(/^(\d{1,2}):(\d{2})$/);
+  if(!m) return null;
+  return (+m[1])*60 + (+m[2]);
+}
+function isOnTimeOrEarly(act, sch){
+  const a=parseHM(act);
+  const s=parseHM(sch);
+  if(a==null || s==null) return false;
+  return a <= s;
+}
+
+/* Booking selection via route clicks */
 function onStationClick(idx){
   if(firstClickIndex==null){
     firstClickIndex=idx;
