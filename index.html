@@ -813,7 +813,7 @@ function renderRouteMap(currentCode){
         if (chartTime) {
           const chartEl = document.createElement('div');
           chartEl.className = 'timeSch';      // CSS = white
-          chartEl.textContent = `Chart: ${chartTime}`;
+          chartEl.textContent = `${chartTime}`;
           ti.appendChild(chartEl);
         }
 
@@ -827,7 +827,7 @@ function renderRouteMap(currentCode){
             actEl.classList.add('late');      // red
           }
 
-          actEl.textContent = `Actual: ${actualTime}`;
+          actEl.textContent = `${actualTime}`;
           ti.appendChild(actEl);
         }
 
