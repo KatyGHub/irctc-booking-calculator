@@ -1,6 +1,6 @@
 {
-  "name": "IRCTC Booking Date Calculator",
-  "short_name": "IRCTC Booking",
+  "name": "DayZero IRCTC",
+  "short_name": "DayZero IRCTC",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0b0f1a",
